@@ -8,11 +8,24 @@ return new class extends Migration
 {
     public function up()
     {
-        Schema::create('laravel_calendar_core_table', function (Blueprint $table) {
+        Schema::create('calendar_events', function (Blueprint $table) {
             $table->id();
+            $table->string('name', 255);
+            $table->foreignId('creator_id')->constrained('users');
+            $table->timestamp('start_at');
+            $table->timestamp('end_at');
+            $table->foreignId('schedulable_id')->nullable();
+            $table->string('schedulable_type')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
 
-            // add fields
-
+            $table->index(['schedulable_id', 'schedulable_type']);
+        });
+        Schema::create('calendar_event_participants', function (Blueprint $table) {
+            $table->foreignId('participant_id')->constrained('users');
+            $table->foreignId('event_id')->constrained('events');
+            $table->boolean('accepted')->nullable();
+            $table->timestamp('accept_choice_at')->nullable();
             $table->timestamps();
         });
     }

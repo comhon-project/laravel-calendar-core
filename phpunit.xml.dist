@@ -16,10 +16,19 @@
     backupStaticProperties="false"
 >
     <testsuites>
-        <testsuite name="ComhonProject Test Suite">
-            <directory>tests</directory>
+        <testsuite name="Comhon Test Suite">
+            <directory>tests/Services</directory>
+            <directory>tests/Unit</directory>
+            <directory>tests/Api</directory>
         </testsuite>
     </testsuites>
+    <coverage>
+        <report>
+            <html outputDirectory="build/coverage"/>
+            <text outputFile="build/coverage.txt"/>
+            <clover outputFile="build/logs/clover.xml"/>
+        </report>
+    </coverage>
     <logging>
         <junit outputFile="build/report.junit.xml"/>
     </logging>

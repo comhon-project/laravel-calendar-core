@@ -52,8 +52,8 @@ php artisan vendor:publish --tag="laravel-calendar-core-views"
 ## Usage
 
 ```php
-$calendar = new ComhonProject\Calendar();
-echo $calendar->echoPhrase('Hello, ComhonProject!');
+$calendar = new Comhon\Calendar();
+echo $calendar->echoPhrase('Hello, Comhon!');
 ```
 
 ## Testing
