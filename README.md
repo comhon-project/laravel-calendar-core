@@ -1,19 +1,28 @@
-# a laravel calendar library that faciliate events scheduling (only backend part)
+# Calendar Core
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/comhon-project/laravel-calendar-core.svg?style=flat-square)](https://packagist.org/packages/comhon-project/laravel-calendar-core)
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/comhon-project/laravel-calendar-core/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/comhon-project/laravel-calendar-core/actions?query=workflow%3Arun-tests+branch%3Amain)
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/comhon-project/laravel-calendar-core/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/comhon-project/laravel-calendar-core/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/comhon-project/laravel-calendar-core.svg?style=flat-square)](https://packagist.org/packages/comhon-project/laravel-calendar-core)
 
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
+Calendar Core is a laravel calendar library that faciliate events scheduling (only backend part).
 
-## Support us
+## Table of Contents
 
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/laravel-calendar-core.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/laravel-calendar-core)
-
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
-
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
+-   [Installation](#installation)
+-   [Explanation](#explanation)
+-   [Models, Interfaces, and Objects](#models-interfaces-and-objects)
+    -   [Event Model](#event-model)
+    -   [Schedulable Model](#schedulable-model)
+    -   [Schedulable Series Model](#schedulable-series-model)
+    -   [Schedulable Serie Object](#schedulable-serie-object)
+-   [Usage](#usage)
+    -   [Event Service](#event-service)
+    -   [Schedulable Service](#schedulable-service)
+    -   [Schedulable Serie Service](#schedulable-serie-service)
+    -   [Config](#config)
+    -   [API](#api)
+-   [Test](#test)
 
 ## Installation
 
@@ -26,35 +35,100 @@ composer require comhon-project/laravel-calendar-core
 You can publish and run the migrations with:
 
 ```bash
-php artisan vendor:publish --tag="laravel-calendar-core-migrations"
+php artisan vendor:publish --tag="calendar-core-migrations"
 php artisan migrate
 ```
 
 You can publish the config file with:
 
 ```bash
-php artisan vendor:publish --tag="laravel-calendar-core-config"
+php artisan vendor:publish --tag="calendar-core-config"
 ```
 
-This is the contents of the published config file:
-
-```php
-return [
-];
-```
-
-Optionally, you can publish the views using
+Optionally, you can publish the policies using
 
 ```bash
-php artisan vendor:publish --tag="laravel-calendar-core-views"
+php artisan vendor:publish --tag="calendar-core-policies"
 ```
+
+## Explanation
+
+The Calendar Core library permit to build caldendars for your users by adding events and scheduling them as they wish. An event is a generic model that can be associated to anything you want (as far as it is a eloquent model).
+
+This way, generic calendar events and your models management are decoupled, for a more maintainable and easy to understand architecture.
+
+## Models, interfaces and objects
+
+### Event model
+
+the `Event` model is an eloquent model that store typical informations for a calendar event :
+
+-   `id`: the event unique id
+-   `name`: the event name
+-   `creator_id`: the user that have created the event
+-   `start_at`: date time from which the event starts
+-   `end_at`: date time at which the event ends
+-   `schedulable_id`: a schedulable model id (only if you have associated a model to the event)
+-   `schedulable_type`: a schedulable model type (only if you have associated a model to the event)
+
+An event has participants too. Each guest may accept or not to participate to event. You can retrieve participants through the relationship `participants`.
+
+### Schedulable model
+
+A Schedulable model is an eloquent model that is directly associated to one or several events. For example your application permit to manage training sessions, you might have a Model `TrainingSession` that store specifics informations. This model should be a Schedulable model.
+
+A Schedulable model MUST inherit laravel `Model` and implements `SchedulableInterface`. You can use the trait `SchedulableUniqueTrait` if your schedulable model must be associated to ony one event.
+
+### Schedulable Series model
+
+A Schedulable Series model is an eloquent model that is indirectly associated to events through associated Schedulable models. For example your application permit to manage training programs, you might have a Model `TrainingProgram` and this model might have a relationship `sessions` (and the relation is related to a Schedulable model). This model should be a Schedulable Series model. A Schedulable Series model may have several series as long as you have corresponding relationships.
+
+A Schedulable Series model MUST inherit laravel `Model` and implements `SchedulableSeriesInterface`.
+
+### Schedulable Serie object
+
+The object `SchedulableSerie` is a wrapper that contains a Schedulable Series model and a relationship name. It permits transferring data conveniently by manipulating only one objet.
 
 ## Usage
 
-```php
-$calendar = new Comhon\Calendar();
-echo $calendar->echoPhrase('Hello, Comhon!');
-```
+### Event Service
+
+Event service is the central service to handle events. to instanciate the `EventService` you should use [laravel container](https://laravel.com/docs/11.x/container) and Dependency injection.
+
+From `EventService` You can, among other things, attach/detach participants, set participation status for a participant, reschedule events, cancel events.
+
+When using `EventService` directly, events are dispatched for each previous mentioned actions :
+
+-   `ParticipantsAttached`
+-   `ParticipantsDetached`
+-   `EventRescheduled`
+-   `ParticipationStatusSet`
+
+All events are dispatched inside a transaction so if you want a listener to be executed after the database commit your listener should implements `ShouldHandleEventsAfterCommit` or `ShouldQueueAfterCommit`.
+
+### Schedulable Service
+
+Schedulable service permit to manage events directly from your Schedulable model. to instanciate the `SchedulableService` you should use [laravel container](https://laravel.com/docs/11.x/container) and Dependency injection.
+
+From `SchedulableService` You can, attach/detach participants, set participation status for a participant, schedule/reschedule events, cancel events.
+
+### Schedulable Serie Service
+
+Schedulable Serie service permit to manage a serie of events directly from your Schedulable model. to instanciate the `SchedulableSerieService` you should use [laravel container](https://laravel.com/docs/11.x/container) and Dependency injection.
+
+From `SchedulableSerieService` You can, attach/detach participants, set participation status for a participant, cancel events.
+
+### Config
+
+Once you have published package files you can see/edit available configs in the file `config/calendar-core.php`.
+
+### API
+
+You can use built API routes to interact with events. If you have some particular behavior, you can use dispatched events to process some actions. if you use built API routes you can define if you want to use laravel policies, if so, you can publish prebuilt policy files and fill it as you wish.
+
+Before using Built API routes, defined `participant_model` and `creator_model` configs MUST be classes that implement `HasScheduleInterface`.
+
+If you have Schedulable models or Schedulable Series model associated to events, it is recommended to build your own routes and use provided services.
 
 ## Testing
 
