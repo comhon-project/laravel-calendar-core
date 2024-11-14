@@ -23,6 +23,13 @@ class CalendarServiceProvider extends PackageServiceProvider
             ->hasRoute('routes');
     }
 
+    public function bootingPackage()
+    {
+        if (! config('calendar-core.use_routes')) {
+            $this->package->routeFileNames = [];
+        }
+    }
+
     public function packageBooted()
     {
         $this->registerPolicies();

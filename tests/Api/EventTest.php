@@ -89,6 +89,17 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * Warning! a specific config is set for this test in TestCase::getEnvironmentSetUp
+     */
+    public function testListEventsDontUseRoute()
+    {
+        /** @var User $consumer */
+        $consumer = User::factory()->create();
+        $this->actingAs($consumer)->getJson('api/events')
+            ->assertNotFound();
+    }
+
     public function testGetEventSuccess()
     {
         $user = User::factory()->create();

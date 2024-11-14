@@ -42,8 +42,12 @@ class TestCase extends Orchestra
 
     public function getEnvironmentSetUp($app)
     {
+        // Warning! set a specific config for only one test
+        $useRoutes = $this->name() != 'testListEventsDontUseRoute';
+
         config()->set('calendar-core.participant_model', User::class);
         config()->set('calendar-core.creator_model', User::class);
+        config()->set('calendar-core.use_routes', $useRoutes);
         config()->set('calendar-core.use_policies', true);
         config()->set('calendar-core.middleware', ['api']);
         config()->set('calendar-core.route_prefix', 'api');
