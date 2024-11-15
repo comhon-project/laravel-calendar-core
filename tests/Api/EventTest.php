@@ -83,9 +83,15 @@ class EventTest extends TestCase
 
     public function testListEventsForbidden()
     {
+        $params = http_build_query([
+            'participant_ids' => [User::factory()->create()->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ]);
+
         /** @var User $consumer */
         $consumer = User::factory()->create();
-        $this->actingAs($consumer)->getJson('api/events')
+        $this->actingAs($consumer)->getJson("api/events?{$params}")
             ->assertForbidden();
     }
 

@@ -14,7 +14,7 @@ class EventPolicy
     /**
      * Determine whether the user can view any models.
      */
-    public function viewAny(User $user)
+    public function viewAny(User $user, array $participantIds)
     {
         // TODO put your authorization logic here
     }

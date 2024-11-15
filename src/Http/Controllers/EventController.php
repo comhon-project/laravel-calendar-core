@@ -18,11 +18,7 @@ class EventController extends Controller
      */
     public function index(Request $request)
     {
-        $this->authorize('view-any', Event::class);
-
         $participantClass = config('calendar-core.participant_model');
-        $properties = (new $participantClass)->getIdentityProperties();
-
         $validated = $request->validate([
             'participant_ids' => [
                 'required',
@@ -31,11 +27,13 @@ class EventController extends Controller
             'from' => 'required|date',
             'to' => 'required|date',
         ]);
+        
+        $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
 
         $participants = $participantClass::with(['events' => function ($query) use ($validated) {
             $query->where('end_at', '>', Carbon::parse($validated['from'])->tz('UTC'))
                 ->where('start_at', '<', Carbon::parse($validated['to'])->tz('UTC'));
-        }])->findOrFail($validated['participant_ids'], $properties);
+        }])->findOrFail($validated['participant_ids'], (new $participantClass)->getKeyName());
 
         return EventResource::collection($participants->pluck('events')->flatten());
     }
@@ -47,7 +45,7 @@ class EventController extends Controller
     {
         $this->authorize('view', $event);
 
-        return new EventResource($event->load('participants', 'creator'));
+        return new EventResource($event->load('creator'));
     }
 
     /**
@@ -101,7 +99,7 @@ class EventController extends Controller
         $participantClass = config('calendar-core.participant_model');
         $properties = (new $participantClass)->getIdentityProperties();
 
-        return HasScheduleResource::collection($event->participants()->select($properties)->get());
+        return HasScheduleResource::collection($event->participants()->select($properties)->paginate());
     }
 
     public function syncParticipants(Request $request, EventService $eventService, Event $event)
