@@ -14,19 +14,31 @@ return [
     'creator_model' => \App\Models\User::class,
 
     /*
-     | prefix to apply on event routes
+     | all configs related to events API
+     | Warning! if you update any api config, don't forget to reset routes cache.
      */
-    'route_prefix' => '',
+    'api' => [
+        /*
+         | allow you to use built API routes to manage calendar events.
+         | if false, all others api configs are not taken in account.
+         */
+        'active' => false,
 
-    /*
-     | middlewares to apply on all event routes
-     */
-    'middleware' => ['web', 'auth'],
+        /*
+         | the domain of the api
+         */
+        'domain' => null,
 
-    /*
-     | allow you to use built API routes to manage calendar events.
-     */
-    'use_routes' => false,
+        /*
+         | prefix to apply on all event routes
+         */
+        'prefix' => null,
+
+        /*
+         | middlewares to apply on all event routes
+         */
+        'middleware' => ['web', 'auth'],
+    ],
 
     /*
      | if you want to define user access using policies, set this config to true.

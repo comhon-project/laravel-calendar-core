@@ -4,9 +4,9 @@ use Comhon\Calendar\Http\Controllers\EventController;
 use Illuminate\Support\Facades\Route;
 
 $attributes = [
-    'domain' => config('calendar-core.domain'),
-    'prefix' => config('calendar-core.route_prefix'),
-    'middleware' => config('calendar-core.middleware'),
+    'domain' => config('calendar-core.api.domain'),
+    'prefix' => config('calendar-core.api.prefix'),
+    'middleware' => config('calendar-core.api.middleware'),
 ];
 Route::group($attributes, function () {
     Route::apiResource('events', EventController::class)->except(['destroy']);

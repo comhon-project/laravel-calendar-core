@@ -95,6 +95,11 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
+    public function testListEventsUnauthorized()
+    {
+        $this->getJson('api/events')->assertUnauthorized();
+    }
+
     /**
      * Warning! a specific config is set for this test in TestCase::getEnvironmentSetUp
      */

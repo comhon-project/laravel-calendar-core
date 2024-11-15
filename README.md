@@ -124,6 +124,8 @@ From `SchedulableSerieService` You can, attach/detach participants, set particip
 
 Once you have published package files you can see/edit available configs in the file `config/calendar-core.php`.
 
+Note: If you update any `api` config, don't forget to reset routes cache.
+
 ### API
 
 You can use built API routes to interact with events. If you have some particular behavior, you can use dispatched events to process some actions. if you use built API routes you can define if you want to use laravel policies, if so, you can publish prebuilt policy files and fill it as you wish.

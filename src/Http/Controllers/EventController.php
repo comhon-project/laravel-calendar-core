@@ -27,7 +27,7 @@ class EventController extends Controller
             'from' => 'required|date',
             'to' => 'required|date',
         ]);
-        
+
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
 
         $participants = $participantClass::with(['events' => function ($query) use ($validated) {

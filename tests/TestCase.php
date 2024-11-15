@@ -47,10 +47,10 @@ class TestCase extends Orchestra
 
         config()->set('calendar-core.participant_model', User::class);
         config()->set('calendar-core.creator_model', User::class);
-        config()->set('calendar-core.use_routes', $useRoutes);
+        config()->set('calendar-core.api.active', $useRoutes);
+        config()->set('calendar-core.api.middleware', ['api', 'auth']);
+        config()->set('calendar-core.api.prefix', 'api');
         config()->set('calendar-core.use_policies', true);
-        config()->set('calendar-core.middleware', ['api']);
-        config()->set('calendar-core.route_prefix', 'api');
         config()->set('database.default', 'testing');
         config()->set('database.connections.testing', [
             'driver' => 'sqlite',
