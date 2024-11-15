@@ -32,17 +32,19 @@ You can install the package via composer:
 composer require comhon-project/laravel-calendar-core
 ```
 
+You can publish the config file with:
+
+```bash
+php artisan vendor:publish --tag="calendar-core-config"
+```
+
+Warning! Before running migration, make sure that `participant_model` and `creator_model` configurations are correct. Otherwise, the migration may define wrong foreign key constraints.
+
 You can publish and run the migrations with:
 
 ```bash
 php artisan vendor:publish --tag="calendar-core-migrations"
 php artisan migrate
-```
-
-You can publish the config file with:
-
-```bash
-php artisan vendor:publish --tag="calendar-core-config"
 ```
 
 Optionally, you can publish the policies using
@@ -114,7 +116,7 @@ From `SchedulableService` You can, attach/detach participants, set participation
 
 ### Schedulable Serie Service
 
-Schedulable Serie service permit to manage a serie of events directly from your Schedulable model. to instanciate the `SchedulableSerieService` you should use [laravel container](https://laravel.com/docs/11.x/container) and Dependency injection.
+Schedulable Serie service permit to manage a serie of events directly from your Schedulable Serie object. to instanciate the `SchedulableSerieService` you should use [laravel container](https://laravel.com/docs/11.x/container) and Dependency injection.
 
 From `SchedulableSerieService` You can, attach/detach participants, set participation status for a participant, cancel events.
 
