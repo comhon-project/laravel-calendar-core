@@ -32,12 +32,12 @@ class EventTest extends TestCase
         ];
     }
 
-    public function testGetBookableEventsQuerySuccess()
+    public function testGetSchedulableEventsQuerySuccess()
     {
         /** @var SchedulableInterface $schedulable */
         $schedulable = TrainingSession::factory()->create();
 
-        $query = app(EventService::class)->getBookableEventsQuery($schedulable);
+        $query = app(EventService::class)->getSchedulableEventsQuery($schedulable);
         $this->assertEquals(
             'select * from "calendar_events" where (("calendar_events"."schedulable_type" = ? and exists (select * from "training_sessions" where "calendar_events"."schedulable_id" = "training_sessions"."id" and "id" = ? and "training_sessions"."deleted_at" is null))) and "calendar_events"."deleted_at" is null',
             $query->toSql(),
@@ -48,14 +48,14 @@ class EventTest extends TestCase
         );
     }
 
-    public function testGetBookableEventsQueryWithDates()
+    public function testGetSchedulableEventsQueryWithDates()
     {
         /** @var SchedulableInterface $schedulable */
         $schedulable = TrainingSession::factory()->create();
         $from = Carbon::now()->setMicro(0);
         $to = Carbon::now()->addHour()->setMicro(0);
 
-        $query = app(EventService::class)->getBookableEventsQuery($schedulable, $from, $to);
+        $query = app(EventService::class)->getSchedulableEventsQuery($schedulable, $from, $to);
         $this->assertEquals(
             'select * from "calendar_events" where (("calendar_events"."schedulable_type" = ? and exists (select * from "training_sessions" where "calendar_events"."schedulable_id" = "training_sessions"."id" and "id" = ? and "training_sessions"."deleted_at" is null))) and "end_at" > ? and "start_at" < ? and "calendar_events"."deleted_at" is null',
             $query->toSql(),
@@ -67,10 +67,10 @@ class EventTest extends TestCase
         $this->assertTrue($dateTime == $from);
     }
 
-    public function testGetBookableEventsQueryFailure()
+    public function testGetSchedulableEventsQueryFailure()
     {
         $this->expectExceptionMessage('$schedulable must be instance of eloquent Model');
-        app(EventService::class)->getBookableEventsQuery(new BadSchedulable);
+        app(EventService::class)->getSchedulableEventsQuery(new BadSchedulable);
     }
 
     public function testGetSchedulableSerieEventsQuerySuccess()

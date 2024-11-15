@@ -33,7 +33,7 @@ class SchedulableService
         $attached = collect();
 
         DB::transaction(function () use ($schedulable, $participantIds, $accepted, $from, $to, &$attached) {
-            $eventQuery = $this->eventService->getBookableEventsQuery($schedulable, $from, $to);
+            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to);
             $attached = $this->eventService->syncParticipantsFromQuery($eventQuery, $participantIds, $accepted);
         });
 
@@ -58,7 +58,7 @@ class SchedulableService
         $detached = collect();
 
         DB::transaction(function () use ($schedulable, $participantIds, $from, $to, &$detached) {
-            $eventQuery = $this->eventService->getBookableEventsQuery($schedulable, $from, $to);
+            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to);
             $detached = $this->eventService->detachParticipantsFromQuery($eventQuery, $participantIds);
         });
 
@@ -76,7 +76,7 @@ class SchedulableService
         $from ??= Carbon::now();
 
         DB::transaction(function () use ($schedulable, $participant, $accept, $from, $to) {
-            $eventQuery = $this->eventService->getBookableEventsQuery($schedulable, $from, $to);
+            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to);
             $this->eventService->setParticipationStatusFromQuery($eventQuery, $participant, $accept);
         });
     }
@@ -93,7 +93,7 @@ class SchedulableService
 
         $lock = Cache::lock("schedule_event_{$schedulable->getKey()}_{$schedulable->getTable()}", 10);
         $event = $lock->get(function () use ($schedulable, $startAt, $endAt, $creator) {
-            $query = $this->eventService->getBookableEventsQuery($schedulable);
+            $query = $this->eventService->getSchedulableEventsQuery($schedulable);
             if ($query->count()) {
                 throw new \Exception('Schedulable already has scheduling');
             }
@@ -117,7 +117,7 @@ class SchedulableService
 
     public function reschedule(SchedulableInterface $schedulable, Carbon $startAt, Carbon $endAt)
     {
-        $query = $this->eventService->getBookableEventsQuery($schedulable);
+        $query = $this->eventService->getSchedulableEventsQuery($schedulable);
         $count = $query->count();
         if ($count == 0) {
             throw new \Exception('schedulable has no scheduling');
@@ -132,7 +132,7 @@ class SchedulableService
     {
         $this->verifyFromDate($from);
         $from ??= Carbon::now();
-        $this->eventService->getBookableEventsQuery($schedulable, $from, $to)->delete();
+        $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to)->delete();
     }
 
     public function verifyFromDate(?Carbon $from)

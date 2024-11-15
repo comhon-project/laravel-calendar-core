@@ -44,8 +44,8 @@ class SchedulableTest extends TestCase
         $users = User::factory(2)->hasAttached($schedulable->event, [], 'events')->create();
 
         /** @var TrainingSession $schedulable */
-        $otherBookable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
-        $users[0]->events()->attach($otherBookable->event->id);
+        $otherSchedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $users[0]->events()->attach($otherSchedulable->event->id);
 
         app(SchedulableService::class)->setParticipationStatus($schedulable, $users[0], $accepted);
 
@@ -55,8 +55,8 @@ class SchedulableTest extends TestCase
 
         // others must stay unchanged
         $users[0]->refresh();
-        $this->assertNull($users[0]->events->firstWhere('id', $otherBookable->event->id)->pivot->accepted);
-        $this->assertNull($users[0]->events->firstWhere('id', $otherBookable->event->id)->pivot->accept_choice_at);
+        $this->assertNull($users[0]->events->firstWhere('id', $otherSchedulable->event->id)->pivot->accepted);
+        $this->assertNull($users[0]->events->firstWhere('id', $otherSchedulable->event->id)->pivot->accept_choice_at);
 
         $users[1]->refresh();
         $this->assertNull($users[1]->events->first()->pivot->accepted);
@@ -235,7 +235,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToBookableSuccess($accepted)
+    public function testSyncPraticipantsToSchedulableSuccess($accepted)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -261,7 +261,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToBookableWithAlreadyAttachedSuccess($accepted)
+    public function testSyncPraticipantsToSchedulableWithAlreadyAttachedSuccess($accepted)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -284,7 +284,7 @@ class SchedulableTest extends TestCase
         }
     }
 
-    public function testSyncPraticipantsToBookableWithNoAttachementSuccess()
+    public function testSyncPraticipantsToSchedulableWithNoAttachementSuccess()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -303,7 +303,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testSyncPraticipantsToBookableNotBeforeDate($future)
+    public function testSyncPraticipantsToSchedulableNotBeforeDate($future)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -326,7 +326,7 @@ class SchedulableTest extends TestCase
         $this->assertCount(0, $participants);
     }
 
-    public function testDetachPraticipantsFromBookableSuccess()
+    public function testDetachPraticipantsFromSchedulableSuccess()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -342,7 +342,7 @@ class SchedulableTest extends TestCase
         $this->assertCount(0, $schedulable->refresh()->event->participants);
     }
 
-    public function testDetachPraticipantsFromBookableWithAlreadyAttachedSuccess()
+    public function testDetachPraticipantsFromSchedulableWithAlreadyAttachedSuccess()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -357,7 +357,7 @@ class SchedulableTest extends TestCase
         $this->assertCount(0, $schedulable->refresh()->event->participants);
     }
 
-    public function testDetachPraticipantsFromBookableWithNoAttachementSuccess()
+    public function testDetachPraticipantsFromSchedulableWithNoAttachementSuccess()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -372,7 +372,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testDetachPraticipantsFromBookableNotBeforeDate($future)
+    public function testDetachPraticipantsFromSchedulableNotBeforeDate($future)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();

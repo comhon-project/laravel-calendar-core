@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 
 class EventService
 {
-    public function getBookableEventsQuery(SchedulableInterface $schedulable, ?Carbon $from = null, ?Carbon $to = null): Builder
+    public function getSchedulableEventsQuery(SchedulableInterface $schedulable, ?Carbon $from = null, ?Carbon $to = null): Builder
     {
         if (! $schedulable instanceof Model) {
             throw new \Exception('$schedulable must be instance of eloquent Model');
@@ -66,7 +66,7 @@ class EventService
     ): Builder {
         $query = $schedulable instanceof SchedulableSerie
             ? $this->getSchedulableSerieEventsQuery($schedulable, $from, $to)
-            : $this->getBookableEventsQuery($schedulable, $from, $to);
+            : $this->getSchedulableEventsQuery($schedulable, $from, $to);
 
         return $query->whereHas('participants', function ($query) use ($participant, $syncFrom) {
             $query->where($participant->getKeyName(), $participant->getKey())
