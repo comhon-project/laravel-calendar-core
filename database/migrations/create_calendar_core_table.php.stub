@@ -9,9 +9,10 @@ return new class extends Migration
     public function up()
     {
         Schema::create('calendar_events', function (Blueprint $table) {
+            $creatorClass = config('calendar-core.creator_model');
             $table->id();
             $table->string('name', 255);
-            $table->foreignId('creator_id')->constrained('users');
+            $table->foreignId('creator_id')->constrained((new $creatorClass)->getTable());
             $table->timestamp('start_at');
             $table->timestamp('end_at');
             $table->foreignId('schedulable_id')->nullable();
@@ -22,8 +23,9 @@ return new class extends Migration
             $table->index(['schedulable_id', 'schedulable_type']);
         });
         Schema::create('calendar_event_participants', function (Blueprint $table) {
-            $table->foreignId('participant_id')->constrained('users');
-            $table->foreignId('event_id')->constrained('events');
+            $participantClass = config('calendar-core.participant_model');
+            $table->foreignId('participant_id')->constrained((new $participantClass)->getTable());
+            $table->foreignId('event_id')->constrained('calendar_events');
             $table->boolean('accepted')->nullable();
             $table->timestamp('accept_choice_at')->nullable();
             $table->timestamps();
