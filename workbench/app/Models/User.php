@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Models;
+namespace App\Models;
 
 use Comhon\Calendar\Contracts\HasScheduleInterface;
 use Comhon\Calendar\Traits\HasScheduleTrait;

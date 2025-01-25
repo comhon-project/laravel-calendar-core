@@ -37,8 +37,8 @@
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/",
-            "App\\Policies\\": "tests/Policies",
-            "Workbench\\App\\": "workbench/app/"
+            "Workbench\\Database\\Factories\\": "workbench/database/Factories/",
+            "App\\": "workbench/app/"
         }
     },
     "scripts": {

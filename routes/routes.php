@@ -18,4 +18,5 @@ Route::group($attributes, function () {
         Route::post('participants/sync', [EventController::class, 'syncParticipants']);
         Route::post('participants/detach', [EventController::class, 'detachParticipants']);
     });
+    Route::get('user/events', [EventController::class, 'listUserEvents']);
 });

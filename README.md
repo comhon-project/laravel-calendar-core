@@ -22,6 +22,9 @@ Calendar Core is a laravel calendar library that faciliate events scheduling (on
     -   [Schedulable Serie Service](#schedulable-serie-service)
     -   [Config](#config)
     -   [API](#api)
+-   [Tips](#tips)
+    -   [Schedulable Series models and events aggregations](#schedulable-series-models-and-events-aggregations)
+    -   [Observers](#observers)
 -   [Test](#test)
 
 ## Installation
@@ -70,22 +73,74 @@ the `Event` model is an eloquent model that store typical informations for a cal
 -   `creator_id`: the user that have created the event
 -   `start_at`: date time from which the event starts
 -   `end_at`: date time at which the event ends
+-   `duration`: duration in minutes between `end_at` and `start_at` (readonly, auto generated value)
 -   `schedulable_id`: a schedulable model id (only if you have associated a model to the event)
 -   `schedulable_type`: a schedulable model type (only if you have associated a model to the event)
 
 An event has participants too. Each guest may accept or not to participate to event. You can retrieve participants through the relationship `participants`.
 
+The `Event` model is the main model to refer to for calendar views and scheduling purposes. But it is often not enough to display/manage the scheduling in your project with only events, due to some specifics informations or behaviours. To satisfy this need, you can associate schedulable models from your project.
+
 ### Schedulable model
 
-A Schedulable model is an eloquent model that is directly associated to one or several events. For example your application permit to manage training sessions, you might have a Model `TrainingSession` that store specifics informations. This model should be a Schedulable model.
+A Schedulable model is an eloquent model that is DIRECTLY associated to one or several events. A Schedulable model MUST inherit laravel `Model` and implements `SchedulableInterface`.
 
-A Schedulable model MUST inherit laravel `Model` and implements `SchedulableInterface`. You can use the trait `SchedulableUniqueTrait` if your schedulable model must be associated to ony one event.
+#### One to One
+
+For example your application permit to manage training sessions, you might have a Model `TrainingSession` that store specifics informations. This model should be a Schedulable model that is associated to only one event.
+
+In this case you should use the trait `SchedulableUniqueTrait` that has a `event` relationship to model `Event`.
+
+```php
+class TrainingSession extends Model implements SchedulableInterface
+{
+    use SchedulableUniqueTrait;
+
+    public function getEventName(): string
+    {
+        return 'training session';
+    }
+}
+```
+
+#### One to Many
+
+For example your application permit to manage training programs, you might have a Model `TrainingProgram` that store specifics informations. This model might be a Schedulable model that is associated to many events (each event being a training session but without associated specific model).
+
+In this case you should use the trait `SchedulableTrait` that has a `events` relationship to model `Event`.
+
+```php
+class TrainingProgram extends Model implements SchedulableInterface
+{
+    use SchedulableTrait;
+
+    public function getEventName(): string
+    {
+        return 'training session';
+    }
+}
+```
 
 ### Schedulable Series model
 
-A Schedulable Series model is an eloquent model that is indirectly associated to events through associated Schedulable models. For example your application permit to manage training programs, you might have a Model `TrainingProgram` and this model might have a relationship `sessions` (and the relation is related to a Schedulable model). This model should be a Schedulable Series model. A Schedulable Series model may have several series as long as you have corresponding relationships.
+A Schedulable Series model is an eloquent model that is INDIRECTLY associated to events through associated Schedulable models. For example your application permit to manage training programs, you might have a Model `TrainingProgram` and this model might have a relationship `sessions` (related to a model `TrainingSession` that implements `SchedulableInterface`). This model should be a Schedulable Series model. A Schedulable Series model may have several series as long as you have corresponding relationships.
 
 A Schedulable Series model MUST inherit laravel `Model` and implements `SchedulableSeriesInterface`.
+
+```php
+class TrainingProgram extends Model implements SchedulableSeriesInterface
+{
+    public function series(): array
+    {
+        return ['sessions'];
+    }
+
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(TrainingSession::class);
+    }
+}
+```
 
 ### Schedulable Serie object
 
@@ -124,15 +179,68 @@ From `SchedulableSerieService` You can, attach/detach participants, set particip
 
 Once you have published package files you can see/edit available configs in the file `config/calendar-core.php`.
 
-Note: If you update any `api` config, don't forget to reset routes cache.
+Note: If you update any api config, don't forget to reset routes cache.
 
 ### API
 
 You can use built API routes to interact with events. If you have some particular behavior, you can use dispatched events to process some actions. if you use built API routes you can define if you want to use laravel policies, if so, you can publish prebuilt policy files and fill it as you wish.
 
-Before using Built API routes, defined `participant_model` and `creator_model` configs MUST be classes that implement `HasScheduleInterface`.
+Before using Built API routes, defined `participant_model` config MUST be a class that implement `HasScheduleInterface`. You may use `HasScheduleTrait` in your participant model so you don't have to define `events` relationship yourself.
 
 If you have Schedulable models or Schedulable Series model associated to events, it is recommended to build your own routes and use provided services.
+
+All API routes are defined [here](https://github.com/comhon-project/laravel-calendar-core/blob/main/routes/routes.php)
+
+## Tips
+
+### Schedulable Series models and events aggregations
+
+Sometimes you may want to aggregate events values for one or a bunch of Schedulable Series models. To do so, you just have to combinate [Has Many Through](https://laravel.com/docs/11.x/eloquent-relationships#has-many-through) relationships and [aggregation functions](https://laravel.com/docs/11.x/eloquent-relationships#aggregating-related-models).
+
+For example you want to know the total duration of all training sessions for several training programs.
+
+-   Define the relationship in the Schedulable Series model
+
+```php
+use Comhon\Calendar\Contracts\SchedulableSeriesInterface;
+use Comhon\Calendar\Models\Event;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+
+class TrainingProgram extends Model implements SchedulableSeriesInterface
+{
+    public function sessionEvents(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Event::class,
+            TrainingSession::class,
+            'training_program_id',
+            'schedulable_id'
+        )->where('schedulable_type', (new TrainingSession)->getMorphClass());
+    }
+}
+```
+
+-   Then call aggregation function
+
+```php
+$programs = TrainingProgram::withSum('sessionEvents', 'duration')->get();
+// each program contains session_events_sum_duration property
+```
+
+### Observers
+
+You can automatically cancel events when deleting a schedulable model or a schedualble series model. To do so you just have to use the [observer](https://laravel.com/docs/11.x/eloquent#observers) `SchedulableObserver`.
+
+```php
+#[ObservedBy([SchedulableObserver::class])]
+class TrainingProgram extends Model implements SchedulableSeriesInterface
+{
+    ...
+}
+
+$trainingProgram->delete();
+// all associated events have been automatically canceled.
+```
 
 ## Testing
 

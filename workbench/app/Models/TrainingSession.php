@@ -1,16 +1,17 @@
 <?php
 
-namespace Tests\Models;
+namespace App\Models;
 
-use Comhon\Calendar\Contracts\SchedulableSeriesInterface;
+use Comhon\Calendar\Contracts\SchedulableInterface;
+use Comhon\Calendar\Traits\SchedulableUniqueTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class TrainingProgram extends Model implements SchedulableSeriesInterface
+class TrainingSession extends Model implements SchedulableInterface
 {
     use HasFactory;
+    use SchedulableUniqueTrait;
     use SoftDeletes;
 
     /**
@@ -20,8 +21,8 @@ class TrainingProgram extends Model implements SchedulableSeriesInterface
      */
     protected $fillable = [];
 
-    public function sessions(): HasMany
+    public function getEventName(): string
     {
-        return $this->hasMany(TrainingSession::class);
+        return 'training session';
     }
 }

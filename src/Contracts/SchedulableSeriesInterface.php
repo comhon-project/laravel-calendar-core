@@ -2,4 +2,10 @@
 
 namespace Comhon\Calendar\Contracts;
 
-interface SchedulableSeriesInterface {}
+interface SchedulableSeriesInterface
+{
+    /**
+     * @return string[]
+     */
+    public function series(): array;
+}

@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Services;
 
+use App\Models\BadSchedulable;
+use App\Models\TrainingProgram;
+use App\Models\TrainingSession;
+use App\Models\User;
 use Carbon\Carbon;
 use Comhon\Calendar\Contracts\SchedulableInterface;
 use Comhon\Calendar\DTO\SchedulableSerie;
@@ -14,10 +18,6 @@ use Comhon\Calendar\Services\EventService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Tests\Models\BadSchedulable;
-use Tests\Models\TrainingProgram;
-use Tests\Models\TrainingSession;
-use Tests\Models\User;
 use Tests\TestCase;
 
 class EventTest extends TestCase
@@ -32,7 +32,7 @@ class EventTest extends TestCase
         ];
     }
 
-    public function testGetSchedulableEventsQuerySuccess()
+    public function test_get_schedulable_events_query_success()
     {
         /** @var SchedulableInterface $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -48,7 +48,7 @@ class EventTest extends TestCase
         );
     }
 
-    public function testGetSchedulableEventsQueryWithDates()
+    public function test_get_schedulable_events_query_with_dates()
     {
         /** @var SchedulableInterface $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -67,13 +67,13 @@ class EventTest extends TestCase
         $this->assertTrue($dateTime == $from);
     }
 
-    public function testGetSchedulableEventsQueryFailure()
+    public function test_get_schedulable_events_query_failure()
     {
         $this->expectExceptionMessage('$schedulable must be instance of eloquent Model');
         app(EventService::class)->getSchedulableEventsQuery(new BadSchedulable);
     }
 
-    public function testGetSchedulableSerieEventsQuerySuccess()
+    public function test_get_schedulable_serie_events_query_success()
     {
         /** @var TrainingProgram $training */
         $training = TrainingProgram::factory()->create();
@@ -89,7 +89,7 @@ class EventTest extends TestCase
         );
     }
 
-    public function testGetSchedulableSerieEventsQueryWithDates()
+    public function test_get_schedulable_serie_events_query_with_dates()
     {
         /** @var TrainingProgram $training */
         $training = TrainingProgram::factory()->create();
@@ -108,7 +108,7 @@ class EventTest extends TestCase
         $this->assertTrue($dateTime == $from);
     }
 
-    public function testGetParticipantEventsQuerySchedulableSuccess()
+    public function test_get_participant_events_query_schedulable_success()
     {
         /** @var SchedulableInterface $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -125,7 +125,7 @@ class EventTest extends TestCase
         );
     }
 
-    public function testGetParticipantEventsQuerySchedulableSerieSuccess()
+    public function test_get_participant_events_query_schedulable_serie_success()
     {
         /** @var TrainingProgram $training */
         $training = TrainingProgram::factory()->create();
@@ -139,7 +139,7 @@ class EventTest extends TestCase
         );
     }
 
-    public function testGetParticipantEventsQueryWithDates()
+    public function test_get_participant_events_query_with_dates()
     {
         /** @var SchedulableInterface $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -164,7 +164,7 @@ class EventTest extends TestCase
         $this->assertTrue($dateTime == $from);
     }
 
-    public function testRescheduleEventSuccess()
+    public function test_reschedule_event_success()
     {
         $event = Event::factory()->create();
 
@@ -180,7 +180,7 @@ class EventTest extends TestCase
         $this->assertEquals($newEnd, $event->end_at);
     }
 
-    public function testRescheduleEventInvalidDates()
+    public function test_reschedule_event_invalid_dates()
     {
         $event = Event::factory()->create();
 
@@ -191,7 +191,7 @@ class EventTest extends TestCase
         app(EventService::class)->reschedule($event, $newStart, $newEnd);
     }
 
-    public function testRescheduleEventExceed()
+    public function test_reschedule_event_exceed()
     {
         $event = Event::factory([
             'start_at' => Carbon::now()->subDay(),
@@ -206,7 +206,7 @@ class EventTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSetParticipationStatusEventSuccess($accepted)
+    public function test_set_participation_status_event_success($accepted)
     {
         $event = Event::factory()->create();
         $user = User::factory()->create();
@@ -221,7 +221,7 @@ class EventTest extends TestCase
         $this->assertNotNull($event->participants->first()->pivot->accept_choice_at);
     }
 
-    public function testSetParticipationStatusEventFailure()
+    public function test_set_participation_status_event_failure()
     {
         $event = Event::factory()->create();
         $user = User::factory()->create();
@@ -230,7 +230,7 @@ class EventTest extends TestCase
         app(EventService::class)->setParticipationStatus($event, $user, true);
     }
 
-    public function testCancelEventSuccess()
+    public function test_cancel_event_success()
     {
         $event = Event::factory()->create();
 
@@ -241,7 +241,7 @@ class EventTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToEventSuccess($accepted)
+    public function test_sync_praticipants_to_event_success($accepted)
     {
         $event = Event::factory()->create();
         $users = User::factory(2)->create();
@@ -266,7 +266,7 @@ class EventTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToEventWithAlreadyAttachedSuccess($accepted)
+    public function test_sync_praticipants_to_event_with_already_attached_success($accepted)
     {
         $event = Event::factory()->create();
         $users = User::factory(2)->create();
@@ -288,7 +288,7 @@ class EventTest extends TestCase
         }
     }
 
-    public function testSyncPraticipantsToEventWithNoAttachementSuccess()
+    public function test_sync_praticipants_to_event_with_no_attachement_success()
     {
         $event = Event::factory()->create();
         $user = User::factory()->create();
@@ -306,7 +306,7 @@ class EventTest extends TestCase
 
     }
 
-    public function testDetachPraticipantsFromEventSuccess()
+    public function test_detach_praticipants_from_event_success()
     {
         $event = Event::factory()->create();
         $users = User::factory(2)
@@ -321,7 +321,7 @@ class EventTest extends TestCase
         $this->assertCount(0, $event->refresh()->participants);
     }
 
-    public function testDetachPraticipantsFromEventWithAlreadyAttachedSuccess()
+    public function test_detach_praticipants_from_event_with_already_attached_success()
     {
         $event = Event::factory()->create();
         $users = User::factory(2)->create();
@@ -335,7 +335,7 @@ class EventTest extends TestCase
         $this->assertCount(0, $event->refresh()->participants);
     }
 
-    public function testDetachPraticipantsFromEventWithNoAttachementSuccess()
+    public function test_detach_praticipants_from_event_with_no_attachement_success()
     {
         $event = Event::factory()->create();
         $users = User::factory(2)->create();

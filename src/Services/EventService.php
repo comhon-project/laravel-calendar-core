@@ -208,10 +208,27 @@ class EventService
             ]);
     }
 
-    public function cancel(Event $event)
+    public function cancel(Event $event, ?string $cancellationReason = null)
     {
         $this->verifyHasDateNotPassed($event);
+        if ($cancellationReason) {
+            $event->cancellation_reason = $cancellationReason;
+            $event->save();
+        }
         $event->delete();
+    }
+
+    /**
+     * Cancel events that match with query.
+     *
+     * Since events models are not loaded (mass update), there are no model events triggered.
+     */
+    public function cancelFromQuery(Builder $eventQuery, ?string $cancellationReason = null)
+    {
+        if ($cancellationReason) {
+            $eventQuery->update(['cancellation_reason' => $cancellationReason]);
+        }
+        $eventQuery->delete();
     }
 
     private function verifyHasDateNotPassed(Event $event)

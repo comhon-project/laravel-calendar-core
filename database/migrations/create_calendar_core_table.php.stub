@@ -15,6 +15,8 @@ return new class extends Migration
             $table->foreignId('creator_id')->constrained((new $creatorClass)->getTable());
             $table->timestamp('start_at');
             $table->timestamp('end_at');
+            $this->addGeneratedDuration($table);
+            $table->string('cancellation_reason', 255)->nullable();
             $table->foreignId('schedulable_id')->nullable();
             $table->string('schedulable_type')->nullable();
             $table->timestamps();
@@ -30,5 +32,23 @@ return new class extends Migration
             $table->timestamp('accept_choice_at')->nullable();
             $table->timestamps();
         });
+    }
+
+    private function addGeneratedDuration(Blueprint $table)
+    {
+        $platform = DB::getDriverName();
+
+        $expression = match ($platform) {
+            'mysql' => 'TIMESTAMPDIFF(MINUTE, start_at, end_at)',
+            'mariadb' => 'TIMESTAMPDIFF(MINUTE, start_at, end_at)',
+            'pgsql' => '(EXTRACT(EPOCH FROM (end_at - start_at)) / 60)',
+            'sqlite' => "((strftime('%s', end_at) - strftime('%s', start_at)) / 60)",
+            'sqlsrv' => 'DATEDIFF(MINUTE, start_at, end_at)',
+            default => throw new \Exception("Unsupported database platform: $platform")
+        };
+
+        $table->integer('duration')
+            ->storedAs($expression)
+            ->comment('Duration in minutes between end_at and start_at');
     }
 };

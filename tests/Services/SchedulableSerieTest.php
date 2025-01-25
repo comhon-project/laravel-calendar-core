@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Services;
 
+use App\Models\TrainingProgram;
+use App\Models\TrainingSession;
+use App\Models\User;
 use Carbon\Carbon;
 use Comhon\Calendar\DTO\SchedulableSerie;
 use Comhon\Calendar\Events\ParticipantsAttached;
@@ -11,9 +14,6 @@ use Comhon\Calendar\Services\SchedulableSerieService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Tests\Models\TrainingProgram;
-use Tests\Models\TrainingSession;
-use Tests\Models\User;
 use Tests\TestCase;
 
 class SchedulableSerieTest extends TestCase
@@ -47,7 +47,7 @@ class SchedulableSerieTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSetParticipationStatusEventSuccess($accepted)
+    public function test_set_participation_status_event_success($accepted)
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -82,7 +82,7 @@ class SchedulableSerieTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testSetParticipationStatusEventNotBeforeDate($future)
+    public function test_set_participation_status_event_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -113,7 +113,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    public function testCancelEventsSuccess()
+    public function test_cancel_events_success()
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -122,10 +122,30 @@ class SchedulableSerieTest extends TestCase
 
         $this->assertEquals(0, Event::count());
         $this->assertEquals(2, Event::withTrashed()->count());
+
+        foreach (Event::withTrashed()->get() as $event) {
+            $this->assertNull($event->cancellation_reason);
+        }
+    }
+
+    public function test_cancel_events_with_reason_success()
+    {
+        $training = $this->getTrainingWithSessions();
+        $schedulableSerie = new SchedulableSerie($training, 'sessions');
+
+        $reason = 'blabla';
+        app(SchedulableSerieService::class)->cancelEvents($schedulableSerie, $reason);
+
+        $this->assertEquals(0, Event::count());
+        $this->assertEquals(2, Event::withTrashed()->count());
+
+        foreach (Event::withTrashed()->get() as $event) {
+            $this->assertEquals($reason, $event->cancellation_reason);
+        }
     }
 
     #[DataProvider('providerFuture')]
-    public function testCancelEventsNotBeforeDate($future)
+    public function test_cancel_events_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -137,12 +157,12 @@ class SchedulableSerieTest extends TestCase
             $from = Carbon::now()->addMonth();
         }
 
-        app(SchedulableSerieService::class)->cancelEvents($schedulableSerie, $from);
+        app(SchedulableSerieService::class)->cancelEvents($schedulableSerie, null, $from);
 
         $this->assertEquals(2, Event::count());
     }
 
-    public function testCancelEventsBeforeCurrentDateFailure()
+    public function test_cancel_events_before_current_date_failure()
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -150,12 +170,22 @@ class SchedulableSerieTest extends TestCase
         $from = Carbon::now()->subMonth();
 
         $this->expectExceptionMessage('date must be a future date');
-        app(SchedulableSerieService::class)->cancelEvents($schedulableSerie, $from);
+        app(SchedulableSerieService::class)->cancelEvents($schedulableSerie, null, $from);
+    }
 
+    public function test_cancel_events_from_observer()
+    {
+        $training = $this->getTrainingWithSessions();
+        $schedulableSerie = new SchedulableSerie($training, 'sessions');
+
+        $training->delete();
+
+        $this->assertEquals(0, Event::count());
+        $this->assertEquals(2, Event::withTrashed()->count());
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToSchedulableSerieSuccess($accepted)
+    public function test_sync_praticipants_to_schedulable_serie_success($accepted)
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -185,7 +215,7 @@ class SchedulableSerieTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToSchedulableSerieWithAlreadyAttachedSuccess($accepted)
+    public function test_sync_praticipants_to_schedulable_serie_with_already_attached_success($accepted)
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -215,7 +245,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    public function testSyncPraticipantsToSchedulableSerieWithNoAttachementSuccess()
+    public function test_sync_praticipants_to_schedulable_serie_with_no_attachement_success()
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -241,7 +271,7 @@ class SchedulableSerieTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testSyncPraticipantsToSchedulableSerieNotBeforeDate($future)
+    public function test_sync_praticipants_to_schedulable_serie_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -268,7 +298,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    public function testDetachPraticipantsFromSchedulableSerieSuccess()
+    public function test_detach_praticipants_from_schedulable_serie_success()
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -291,7 +321,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    public function testDetachPraticipantsFromSchedulableSerieWithAlreadyAttachedSuccess()
+    public function test_detach_praticipants_from_schedulable_serie_with_already_attached_success()
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -313,7 +343,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    public function testDetachPraticipantsFromSchedulableSerieWithNoAttachementSuccess()
+    public function test_detach_praticipants_from_schedulable_serie_with_no_attachement_success()
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
@@ -332,7 +362,7 @@ class SchedulableSerieTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testDetachPraticipantsFromSchedulableSerieNotBeforeDate($future)
+    public function test_detach_praticipants_from_schedulable_serie_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');

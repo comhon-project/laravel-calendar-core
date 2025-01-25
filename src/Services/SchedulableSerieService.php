@@ -79,11 +79,19 @@ class SchedulableSerieService
         });
     }
 
-    public function cancelEvents(SchedulableSerie $schedulableSerie, ?Carbon $from = null, ?Carbon $to = null)
-    {
+    public function cancelEvents(
+        SchedulableSerie $schedulableSerie,
+        ?string $cancellationReason = null,
+        ?Carbon $from = null,
+        ?Carbon $to = null
+    ) {
         $this->verifyFromDate($from);
         $from ??= Carbon::now();
-        $this->eventService->getSchedulableSerieEventsQuery($schedulableSerie, $from, $to)->delete();
+
+        $this->eventService->cancelFromQuery(
+            $this->eventService->getSchedulableSerieEventsQuery($schedulableSerie, $from, $to),
+            $cancellationReason
+        );
     }
 
     public function verifyFromDate(?Carbon $from)

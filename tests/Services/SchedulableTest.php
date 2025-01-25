@@ -2,6 +2,10 @@
 
 namespace Tests\Feature\Services;
 
+use App\Models\BadSchedulable;
+use App\Models\TrainingProgramSimple;
+use App\Models\TrainingSession;
+use App\Models\User;
 use Carbon\Carbon;
 use Comhon\Calendar\Events\ParticipantsAttached;
 use Comhon\Calendar\Events\ParticipantsDetached;
@@ -11,9 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Tests\Models\BadSchedulable;
-use Tests\Models\TrainingSession;
-use Tests\Models\User;
 use Tests\TestCase;
 
 class SchedulableTest extends TestCase
@@ -37,7 +38,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSetParticipationStatusEventSuccess($accepted)
+    public function test_set_participation_status_event_success($accepted)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -64,7 +65,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testSetParticipationStatusEventNotBeforeDate($future)
+    public function test_set_participation_status_event_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -84,7 +85,7 @@ class SchedulableTest extends TestCase
         $this->assertNull($user->events->firstWhere('id', $schedulable->event->id)->pivot->accept_choice_at);
     }
 
-    public function testCancelEventsSuccess()
+    public function test_cancel_events_success()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -94,10 +95,51 @@ class SchedulableTest extends TestCase
 
         $this->assertNull(Event::find($event->id));
         $this->assertNotNull(Event::withTrashed()->find($event->id));
+
+        foreach (Event::withTrashed()->get() as $event) {
+            $this->assertNull($event->cancellation_reason);
+        }
+    }
+
+    public function test_cancel_events_with_reason_success()
+    {
+        /** @var TrainingSession $schedulable */
+        $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $event = $schedulable->event()->first();
+
+        $reason = 'blabla';
+        app(SchedulableService::class)->cancelEvents($schedulable, $reason);
+
+        $this->assertNull(Event::find($event->id));
+        $this->assertNotNull(Event::withTrashed()->find($event->id));
+
+        foreach (Event::withTrashed()->get() as $event) {
+            $this->assertEquals($reason, $event->cancellation_reason);
+        }
+    }
+
+    public function test_cancel_events_multi()
+    {
+        /** @var TrainingProgramSimple $schedulable */
+        $schedulable = TrainingProgramSimple::factory()
+            ->has(Event::factory(), 'events')
+            ->has(Event::factory(), 'events')
+            ->create();
+
+        $schedulable->refresh();
+        $eventOne = $schedulable->events->first();
+        $eventTwo = $schedulable->events->last();
+
+        app(SchedulableService::class)->cancelEvents($schedulable);
+
+        $this->assertNull(Event::find($eventOne->id));
+        $this->assertNotNull(Event::withTrashed()->find($eventOne->id));
+        $this->assertNull(Event::find($eventTwo->id));
+        $this->assertNotNull(Event::withTrashed()->find($eventTwo->id));
     }
 
     #[DataProvider('providerFuture')]
-    public function testCancelEventsNotBeforeDate($future)
+    public function test_cancel_events_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -110,12 +152,12 @@ class SchedulableTest extends TestCase
             $from = Carbon::now()->addMonth();
         }
 
-        app(SchedulableService::class)->cancelEvents($schedulable, $from);
+        app(SchedulableService::class)->cancelEvents($schedulable, null, $from);
 
         $this->assertNotNull(Event::find($event->id));
     }
 
-    public function testCancelEventsBeforeCurrentFailure()
+    public function test_cancel_events_before_current_failure()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -124,10 +166,30 @@ class SchedulableTest extends TestCase
         $from = Carbon::now()->subMonth();
 
         $this->expectExceptionMessage('date must be a future date');
-        app(SchedulableService::class)->cancelEvents($schedulable, $from);
+        app(SchedulableService::class)->cancelEvents($schedulable, null, $from);
     }
 
-    public function testScheduleEventSuccess()
+    public function test_cancel_events_from_observer()
+    {
+        /** @var TrainingProgramSimple $schedulable */
+        $schedulable = TrainingProgramSimple::factory()
+            ->has(Event::factory(), 'events')
+            ->has(Event::factory(), 'events')
+            ->create();
+
+        $schedulable->refresh();
+        $eventOne = $schedulable->events->first();
+        $eventTwo = $schedulable->events->last();
+
+        $schedulable->delete();
+
+        $this->assertNull(Event::find($eventOne->id));
+        $this->assertNotNull(Event::withTrashed()->find($eventOne->id));
+        $this->assertNull(Event::find($eventTwo->id));
+        $this->assertNotNull(Event::withTrashed()->find($eventTwo->id));
+    }
+
+    public function test_schedule_event_success()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -144,7 +206,7 @@ class SchedulableTest extends TestCase
         $this->assertTrue($schedulable->is($event->schedulable));
     }
 
-    public function testScheduleEventFailureExists()
+    public function test_schedule_event_failure_exists()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -156,7 +218,7 @@ class SchedulableTest extends TestCase
         app(SchedulableService::class)->schedule($schedulable, $startAt, $endAt, $creator);
     }
 
-    public function testScheduleEventFailureConflict()
+    public function test_schedule_event_failure_conflict()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -170,7 +232,7 @@ class SchedulableTest extends TestCase
         );
     }
 
-    public function testScheduleEventSchedulableNotModelFailure()
+    public function test_schedule_event_schedulable_not_model_failure()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -182,7 +244,7 @@ class SchedulableTest extends TestCase
         app(SchedulableService::class)->schedule(new BadSchedulable, $startAt, $endAt, $creator);
     }
 
-    public function testScheduleEventSchedulableInvalidDates()
+    public function test_schedule_event_schedulable_invalid_dates()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -194,7 +256,7 @@ class SchedulableTest extends TestCase
         app(SchedulableService::class)->schedule($schedulable, $startAt, $endAt, $creator);
     }
 
-    public function testRescheduleEventSuccess()
+    public function test_reschedule_event_success()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -209,7 +271,7 @@ class SchedulableTest extends TestCase
         $this->assertEquals($endAt, $event->end_at);
     }
 
-    public function testRescheduleEventFailureNoScheduling()
+    public function test_reschedule_event_failure_no_scheduling()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->create();
@@ -220,7 +282,7 @@ class SchedulableTest extends TestCase
         app(SchedulableService::class)->reschedule($schedulable, $startAt, $endAt);
     }
 
-    public function testRescheduleEventFailureSeveralSchedulings()
+    public function test_reschedule_event_failure_several_schedulings()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()
@@ -235,7 +297,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToSchedulableSuccess($accepted)
+    public function test_sync_praticipants_to_schedulable_success($accepted)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -261,7 +323,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerAccepted')]
-    public function testSyncPraticipantsToSchedulableWithAlreadyAttachedSuccess($accepted)
+    public function test_sync_praticipants_to_schedulable_with_already_attached_success($accepted)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -284,7 +346,7 @@ class SchedulableTest extends TestCase
         }
     }
 
-    public function testSyncPraticipantsToSchedulableWithNoAttachementSuccess()
+    public function test_sync_praticipants_to_schedulable_with_no_attachement_success()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -303,7 +365,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testSyncPraticipantsToSchedulableNotBeforeDate($future)
+    public function test_sync_praticipants_to_schedulable_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -326,7 +388,7 @@ class SchedulableTest extends TestCase
         $this->assertCount(0, $participants);
     }
 
-    public function testDetachPraticipantsFromSchedulableSuccess()
+    public function test_detach_praticipants_from_schedulable_success()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -342,7 +404,7 @@ class SchedulableTest extends TestCase
         $this->assertCount(0, $schedulable->refresh()->event->participants);
     }
 
-    public function testDetachPraticipantsFromSchedulableWithAlreadyAttachedSuccess()
+    public function test_detach_praticipants_from_schedulable_with_already_attached_success()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -357,7 +419,7 @@ class SchedulableTest extends TestCase
         $this->assertCount(0, $schedulable->refresh()->event->participants);
     }
 
-    public function testDetachPraticipantsFromSchedulableWithNoAttachementSuccess()
+    public function test_detach_praticipants_from_schedulable_with_no_attachement_success()
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
@@ -372,7 +434,7 @@ class SchedulableTest extends TestCase
     }
 
     #[DataProvider('providerFuture')]
-    public function testDetachPraticipantsFromSchedulableNotBeforeDate($future)
+    public function test_detach_praticipants_from_schedulable_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
         $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();

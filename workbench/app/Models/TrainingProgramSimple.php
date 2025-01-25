@@ -1,17 +1,20 @@
 <?php
 
-namespace Tests\Models;
+namespace App\Models;
 
 use Comhon\Calendar\Contracts\SchedulableInterface;
-use Comhon\Calendar\Traits\SchedulableUniqueTrait;
+use Comhon\Calendar\Observers\SchedulableObserver;
+use Comhon\Calendar\Traits\SchedulableTrait;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class TrainingSession extends Model implements SchedulableInterface
+#[ObservedBy([SchedulableObserver::class])]
+class TrainingProgramSimple extends Model implements SchedulableInterface
 {
     use HasFactory;
-    use SchedulableUniqueTrait;
+    use SchedulableTrait;
     use SoftDeletes;
 
     /**

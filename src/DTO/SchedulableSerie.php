@@ -13,6 +13,9 @@ class SchedulableSerie
      */
     public function __construct(private SchedulableSeriesInterface $model, private string $serie)
     {
+        if (! in_array($serie, $model->series())) {
+            throw new \Exception('$serie is not registered as serie');
+        }
         if (! $model instanceof Model) {
             throw new \Exception('$model must be instance of eloquent Model');
         }

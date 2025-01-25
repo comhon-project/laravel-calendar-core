@@ -16,7 +16,7 @@ class EventPolicy
      */
     public function viewAny(User $user, array $participantIds)
     {
-        // TODO put your authorization logic here
+        return $user->has_consumer_ability == true;
     }
 
     /**
@@ -24,7 +24,7 @@ class EventPolicy
      */
     public function viewAuthUserEvents(User $user)
     {
-        // TODO put your authorization logic here
+        return $user->has_consumer_ability == true;
     }
 
     /**
@@ -32,7 +32,7 @@ class EventPolicy
      */
     public function view(User $user, Event $event)
     {
-        // TODO put your authorization logic here
+        return $user->has_consumer_ability == true;
     }
 
     /**
@@ -40,7 +40,7 @@ class EventPolicy
      */
     public function create(User $user)
     {
-        // TODO put your authorization logic here
+        return $user->has_consumer_ability == true;
     }
 
     /**

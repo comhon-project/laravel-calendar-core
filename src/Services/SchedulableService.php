@@ -98,8 +98,8 @@ class SchedulableService
                 throw new \Exception('Schedulable already has scheduling');
             }
             $event = new Event([
-                'start_at' => $startAt,
-                'end_at' => $endAt,
+                'start_at' => $startAt->copy()->tz('UTC'),
+                'end_at' => $endAt->copy()->tz('UTC'),
                 'name' => $schedulable->getEventName(),
             ]);
             $event->creator()->associate($creator);
@@ -128,11 +128,19 @@ class SchedulableService
         $this->eventService->reschedule($query->firstOrFail(), $startAt, $endAt);
     }
 
-    public function cancelEvents(SchedulableInterface $schedulable, ?Carbon $from = null, ?Carbon $to = null)
-    {
+    public function cancelEvents(
+        SchedulableInterface $schedulable,
+        ?string $cancellationReason = null,
+        ?Carbon $from = null,
+        ?Carbon $to = null
+    ) {
         $this->verifyFromDate($from);
         $from ??= Carbon::now();
-        $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to)->delete();
+
+        $this->eventService->cancelFromQuery(
+            $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to),
+            $cancellationReason
+        );
     }
 
     public function verifyFromDate(?Carbon $from)

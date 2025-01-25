@@ -4,7 +4,8 @@
 return [
 
     /*
-     | eloquent model to use for participants
+     | eloquent model to use for participants,
+     | it must be instance of HasScheduleInterface
      */
     'participant_model' => \App\Models\User::class,
 
@@ -25,7 +26,7 @@ return [
         'active' => false,
 
         /*
-         | the domain of the api
+         | the domain of your api
          */
         'domain' => null,
 

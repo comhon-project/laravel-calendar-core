@@ -1,12 +1,12 @@
 <?php
 
-namespace Tests\Database\Factories;
+namespace Workbench\Database\Factories;
 
+use App\Models\TrainingProgram;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Tests\Models\TrainingProgram;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\Tests\Models\TrainingSession>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\TrainingSession>
  */
 class TrainingSessionFactory extends Factory
 {

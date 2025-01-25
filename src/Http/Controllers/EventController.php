@@ -4,10 +4,12 @@ namespace Comhon\Calendar\Http\Controllers;
 
 use Carbon\Carbon;
 use Closure;
+use Comhon\Calendar\Contracts\HasScheduleInterface;
 use Comhon\Calendar\Http\Resources\EventResource;
 use Comhon\Calendar\Http\Resources\HasScheduleResource;
 use Comhon\Calendar\Models\Event;
 use Comhon\Calendar\Services\EventService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -18,7 +20,7 @@ class EventController extends Controller
      */
     public function index(Request $request)
     {
-        $participantClass = config('calendar-core.participant_model');
+        $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
         $validated = $request->validate([
             'participant_ids' => [
                 'required',
@@ -30,12 +32,52 @@ class EventController extends Controller
 
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
 
-        $participants = $participantClass::with(['events' => function ($query) use ($validated) {
-            $query->where('end_at', '>', Carbon::parse($validated['from'])->tz('UTC'))
-                ->where('start_at', '<', Carbon::parse($validated['to'])->tz('UTC'));
-        }])->findOrFail($validated['participant_ids'], (new $participantClass)->getKeyName());
+        $participants = $participantClass::query()
+            ->with(['events' => fn ($query) => $this->scopeInterval($query, $validated)])
+            ->findOrFail($validated['participant_ids'], (new $participantClass)->getKeyName());
 
         return EventResource::collection($participants->pluck('events')->flatten());
+    }
+
+    public function listUserEvents(Request $request)
+    {
+        /** @var \Illuminate\Database\Eloquent\Model|HasScheduleInterface $authUser */
+        $authUser = Auth::user();
+        $this->verifyUserHasScheduleInterface($authUser);
+        $this->verifySameTable('calendar-core.participant_model', $authUser);
+        $this->authorize('view-auth-user-events', Event::class);
+
+        $validated = $request->validate([
+            'from' => 'required|date',
+            'to' => 'required|date',
+            'include_as_creator' => 'boolean',
+        ]);
+
+        $scopeInterval = fn ($query) => $this->scopeInterval($query, $validated);
+        $events = $authUser->events()->where($scopeInterval)->get();
+
+        $includeAsCreator = $validated['include_as_creator'] ?? false;
+        if ($includeAsCreator) {
+            $this->verifySameTable('calendar-core.creator_model', $authUser);
+            $creatorButNotParticipant = Event::query()
+                ->where('creator_id', $authUser->getKey())
+                ->whereDoesntHave('participants', fn ($query) => $query->where($authUser->getKeyName(), $authUser->getKey()))
+                ->where($scopeInterval)
+                ->get();
+
+            $events = $events->merge($creatorButNotParticipant);
+        }
+
+        return EventResource::collection($events);
+    }
+
+    /**
+     * @param  array  $inputs  must be already validated
+     */
+    private function scopeInterval($query, array $inputs)
+    {
+        $query->where('end_at', '>', Carbon::parse($inputs['from'])->tz('UTC'))
+            ->where('start_at', '<', Carbon::parse($inputs['to'])->tz('UTC'));
     }
 
     /**
@@ -53,11 +95,14 @@ class EventController extends Controller
      */
     public function store(Request $request)
     {
+        /** @var \Illuminate\Database\Eloquent\Model $authUser */
+        $authUser = Auth::user();
+        $this->verifySameTable('calendar-core.creator_model', $authUser);
         $this->authorize('create', Event::class);
 
         $validated = $this->validateRequest($request);
         $event = new Event($validated);
-        $event->creator()->associate(Auth::user());
+        $event->creator()->associate($authUser);
         $event->save();
 
         return new EventResource($event);
@@ -94,10 +139,12 @@ class EventController extends Controller
 
     public function getParticipants(Event $event)
     {
+        $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
         $this->authorize('view', $event);
 
-        $participantClass = config('calendar-core.participant_model');
-        $properties = (new $participantClass)->getIdentityProperties();
+        /** @var HasScheduleInterface $model */
+        $model = app($participantClass);
+        $properties = $model->getIdentityProperties();
 
         return HasScheduleResource::collection($event->participants()->select($properties)->paginate());
     }
@@ -141,6 +188,7 @@ class EventController extends Controller
     {
         /** @var \Illuminate\Database\Eloquent\Model $participant */
         $participant = Auth::user();
+        $this->verifySameTable('calendar-core.participant_model', $participant);
         $this->authorize('accept', [$event, $participant]);
 
         $validated = $request->validate([
@@ -152,11 +200,15 @@ class EventController extends Controller
         return response(null, 204);
     }
 
-    public function cancel(EventService $eventService, Event $event)
+    public function cancel(Request $request, EventService $eventService, Event $event)
     {
         $this->authorize('cancel', $event);
 
-        $eventService->cancel($event);
+        $validated = $request->validate([
+            'cancellation_reason' => 'string|max:255',
+        ]);
+
+        $eventService->cancel($event, $validated['cancellation_reason'] ?? null);
 
         return response(null, 204);
     }
@@ -211,5 +263,29 @@ class EventController extends Controller
             },
             "exists:{$modelClass},{$key}",
         ];
+    }
+
+    public function verifySameTable(string $configClassKey, Model $authUser)
+    {
+        if (app(config($configClassKey))->getTable() != $authUser->getTable()) {
+            throw new \Exception("the config '$configClassKey' doesn't match with auth user model (must have same database table)");
+        }
+    }
+
+    public function verifyIsHasScheduleInterface(string $configClassKey): string
+    {
+        $configClass = config($configClassKey);
+        if (! is_subclass_of($configClass, HasScheduleInterface::class)) {
+            throw new \Exception("the config '$configClassKey' must be instanceof HasScheduleInterface");
+        }
+
+        return $configClass;
+    }
+
+    public function verifyUserHasScheduleInterface(object $authUser)
+    {
+        if (! $authUser instanceof HasScheduleInterface) {
+            throw new \Exception('the use model must be instanceof HasScheduleInterface');
+        }
     }
 }

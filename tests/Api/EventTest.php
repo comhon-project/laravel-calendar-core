@@ -2,19 +2,20 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\User;
 use Carbon\Carbon;
+use Comhon\Calendar\Http\Controllers\EventController;
 use Comhon\Calendar\Models\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use Illuminate\Testing\Assert as PHPUnit;
-use Tests\Models\User;
 use Tests\TestCase;
 
 class EventTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function testListEventsSuccess()
+    public function test_list_events_success()
     {
         $user1 = User::factory()->create();
         $user2 = User::factory()->create();
@@ -65,7 +66,7 @@ class EventTest extends TestCase
         $this->assertCount(1, collect($data)->filter(fn ($item) => $item['pivot']['participant_id'] == $user2->id));
     }
 
-    public function testListEventsUnprocessable()
+    public function test_list_events_unprocessable()
     {
         $consumer = User::factory()->hasConsumerAbility()->create();
 
@@ -81,7 +82,7 @@ class EventTest extends TestCase
             ]);
     }
 
-    public function testListEventsForbidden()
+    public function test_list_events_forbidden()
     {
         $params = http_build_query([
             'participant_ids' => [User::factory()->create()->id],
@@ -91,11 +92,11 @@ class EventTest extends TestCase
 
         /** @var User $consumer */
         $consumer = User::factory()->create();
-        $this->actingAs($consumer)->getJson("api/events?{$params}")
+        $this->actingAs($consumer)->getJson("api/events?$params")
             ->assertForbidden();
     }
 
-    public function testListEventsUnauthorized()
+    public function test_list_events_unauthorized()
     {
         $this->getJson('api/events')->assertUnauthorized();
     }
@@ -103,7 +104,7 @@ class EventTest extends TestCase
     /**
      * Warning! a specific config is set for this test in TestCase::getEnvironmentSetUp
      */
-    public function testListEventsDontUseRoute()
+    public function test_list_events_dont_use_route()
     {
         /** @var User $consumer */
         $consumer = User::factory()->create();
@@ -111,7 +112,102 @@ class EventTest extends TestCase
             ->assertNotFound();
     }
 
-    public function testGetEventSuccess()
+    public function test_list_auth_user_events_success()
+    {
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        Event::factory()->hasAttached($consumer, [], 'participants')->create();
+        Event::factory([
+            'start_at' => Carbon::now()->addYear(),
+            'end_at' => Carbon::now()->addYear()->addHour(),
+        ])->hasAttached($consumer, [], 'participants')->create();
+        Event::factory()->for($consumer, 'creator')->create();
+
+        Event::factory()->hasAttached(User::factory()->create(), [], 'participants')->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ]);
+        $data = $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'name',
+                        'creator_id',
+                        'start_at',
+                        'end_at',
+                        'schedulable_id',
+                        'schedulable_type',
+                        'created_at',
+                        'updated_at',
+                        'deleted_at',
+                        'pivot' => [
+                            'participant_id',
+                            'accepted',
+                            'accept_choice_at',
+                        ],
+                    ],
+                ],
+            ])->assertJsonPath('data.0.pivot.participant_id', $consumer->id);
+    }
+
+    public function test_list_auth_user_events_with_as_creator_success()
+    {
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        Event::factory()->hasAttached($consumer, [], 'participants')->create();
+        Event::factory([
+            'start_at' => Carbon::now()->addYear(),
+            'end_at' => Carbon::now()->addYear()->addHour(),
+        ])->hasAttached($consumer, [], 'participants')->create();
+        Event::factory()->for($consumer, 'creator')->create();
+
+        Event::factory()->hasAttached(User::factory()->create(), [], 'participants')->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'include_as_creator' => true,
+        ]);
+        $data = $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'name',
+                        'creator_id',
+                        'start_at',
+                        'end_at',
+                        'schedulable_id',
+                        'schedulable_type',
+                        'created_at',
+                        'updated_at',
+                        'deleted_at',
+                    ],
+                ],
+            ])->assertJsonPath('data.0.pivot.participant_id', $consumer->id)
+            ->assertJsonMissingPath('data.1.pivot');
+    }
+
+    public function test_list_auth_user_events_forbidden()
+    {
+        $consumer = User::factory()->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ]);
+        $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertForbidden();
+    }
+
+    public function test_get_event_success()
     {
         $user = User::factory()->create();
         $event = Event::factory()->hasAttached($user, [], 'participants')->create();
@@ -139,7 +235,7 @@ class EventTest extends TestCase
             ]);
     }
 
-    public function testGetEventForbidden()
+    public function test_get_event_forbidden()
     {
         $event = Event::factory()->create();
         /** @var User $consumer */
@@ -148,7 +244,7 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testStoreEventSuccess()
+    public function test_store_event_success()
     {
         $startAt = Carbon::now()->addMinute()->setMicro(0)->toIsoString();
         $endAt = Carbon::now()->addHour()->setMicro(0)->toIsoString();
@@ -175,7 +271,7 @@ class EventTest extends TestCase
         PHPUnit::assertArraySubset($data, $event->toArray());
     }
 
-    public function testStoreEventForbidden()
+    public function test_store_event_forbidden()
     {
         $data = [];
         /** @var User $consumer */
@@ -184,7 +280,7 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testUpdateEventIsCreator()
+    public function test_update_event_is_creator()
     {
         $event = Event::factory()->create();
 
@@ -214,7 +310,7 @@ class EventTest extends TestCase
         PHPUnit::assertArraySubset($data, $event->refresh()->toArray());
     }
 
-    public function testUpdateEventForbiddenAbilities()
+    public function test_update_event_forbidden_abilities()
     {
         $data = [];
         $event = Event::factory()->create();
@@ -224,7 +320,7 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testUpdateEventForbiddenDateExceed()
+    public function test_update_event_forbidden_date_exceed()
     {
         $data = [];
         $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
@@ -234,7 +330,7 @@ class EventTest extends TestCase
             ->assertJson(['message' => 'event is already finished']);
     }
 
-    public function testCancelEventCreator()
+    public function test_cancel_event_creator()
     {
         $event = Event::factory()->create();
 
@@ -244,7 +340,21 @@ class EventTest extends TestCase
         $this->assertEquals(1, Event::withTrashed()->count());
     }
 
-    public function testCancelEventForbiddenAbility()
+    public function test_cancel_event_with_reason()
+    {
+        $event = Event::factory()->create();
+        $cancellationReason = 'blablabla';
+
+        $response = $this->actingAs($event->creator)->postJson("api/events/{$event->id}/cancel", [
+            'cancellation_reason' => $cancellationReason,
+        ]);
+        $response->assertNoContent();
+        $this->assertEquals(0, Event::count());
+        $this->assertEquals(1, Event::withTrashed()->count());
+        $this->assertEquals($cancellationReason, Event::withTrashed()->first()->cancellation_reason);
+    }
+
+    public function test_cancel_event_forbidden_ability()
     {
         $event = Event::factory()->create();
         /** @var User $consumer */
@@ -254,7 +364,7 @@ class EventTest extends TestCase
         $this->assertEquals(1, Event::count());
     }
 
-    public function testCancelEventForbiddenDateExceed()
+    public function test_cancel_event_forbidden_date_exceed()
     {
         $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
 
@@ -265,7 +375,7 @@ class EventTest extends TestCase
         $this->assertEquals(1, Event::count());
     }
 
-    public function testAcceptEventTrue()
+    public function test_accept_event_true()
     {
         $event = Event::factory()->create();
         /** @var User $user */
@@ -276,7 +386,7 @@ class EventTest extends TestCase
         $this->assertTrue($user->events()->first()->pivot->accepted);
     }
 
-    public function testAcceptEventFalse()
+    public function test_accept_event_false()
     {
         $event = Event::factory()->create();
         /** @var User $user */
@@ -287,7 +397,7 @@ class EventTest extends TestCase
         $this->assertFalse($user->events()->first()->pivot->accepted);
     }
 
-    public function testAcceptEventForbiddenNotParticipant()
+    public function test_accept_event_forbidden_not_participant()
     {
         $event = Event::factory()->create();
         /** @var User $user */
@@ -298,7 +408,7 @@ class EventTest extends TestCase
         $this->assertEquals(1, Event::count());
     }
 
-    public function testAcceptEventForbiddenDateExceed()
+    public function test_accept_event_forbidden_date_exceed()
     {
         $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
         /** @var User $user */
@@ -309,7 +419,7 @@ class EventTest extends TestCase
             ->assertJson(['message' => 'event is already finished']);
     }
 
-    public function testGetEventParticipantsSuccess()
+    public function test_get_event_participants_success()
     {
         $user1 = User::factory()->create();
         $user2 = User::factory()->create();
@@ -346,7 +456,7 @@ class EventTest extends TestCase
             ]);
     }
 
-    public function testGetEventParticipantsForbidden()
+    public function test_get_event_participants_forbidden()
     {
         $event = Event::factory()->create();
         /** @var User $consumer */
@@ -355,7 +465,7 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testRescheduleEventIsCreator()
+    public function test_reschedule_event_is_creator()
     {
         $event = Event::factory()->create();
 
@@ -382,7 +492,7 @@ class EventTest extends TestCase
         PHPUnit::assertArraySubset($data, $event->refresh()->toArray());
     }
 
-    public function testRescheduleEventForbiddenAbilities()
+    public function test_reschedule_event_forbidden_abilities()
     {
         $data = [];
         $event = Event::factory()->create();
@@ -392,7 +502,7 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testRescheduleEventForbiddenDateExceed()
+    public function test_reschedule_event_forbidden_date_exceed()
     {
         $data = [];
         $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
@@ -402,7 +512,7 @@ class EventTest extends TestCase
             ->assertJson(['message' => 'event is already finished']);
     }
 
-    public function testSyncParticipantEventIsCreator()
+    public function test_sync_participant_event_is_creator()
     {
         $event = Event::factory()->create();
         $existing = User::factory()->hasAttached($event, [], 'events')->create();
@@ -428,7 +538,7 @@ class EventTest extends TestCase
         $this->assertNull($new2->events()->first()->pivot->accepted);
     }
 
-    public function testSyncParticipantEventWithAcceptedStatus()
+    public function test_sync_participant_event_with_accepted_status()
     {
         $event = Event::factory()->create();
         $existing = User::factory()->hasAttached($event, [], 'events')->create();
@@ -455,7 +565,7 @@ class EventTest extends TestCase
         $this->assertTrue($new2->events()->first()->pivot->accepted);
     }
 
-    public function testSyncParticipantEventForbiddenAbilities()
+    public function test_sync_participant_event_forbidden_abilities()
     {
         $data = [];
         $event = Event::factory()->create();
@@ -465,7 +575,7 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testSyncParticipantEventForbiddenDateExceed()
+    public function test_sync_participant_event_forbidden_date_exceed()
     {
         $data = [];
         $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
@@ -475,7 +585,7 @@ class EventTest extends TestCase
             ->assertJson(['message' => 'event is already finished']);
     }
 
-    public function testDetachParticipantEventIsCreator()
+    public function test_detach_participant_event_is_creator()
     {
         $event = Event::factory()->create();
         $existing1 = User::factory()->hasAttached($event, [], 'events')->create();
@@ -499,7 +609,7 @@ class EventTest extends TestCase
         $this->assertEquals(1, $existing3->events()->count());
     }
 
-    public function testDetachParticipantEventForbiddenAbilities()
+    public function test_detach_participant_event_forbidden_abilities()
     {
         $data = [];
         $event = Event::factory()->create();
@@ -509,7 +619,7 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function testDetachParticipantEventForbiddenDateExceed()
+    public function test_detach_participant_event_forbidden_date_exceed()
     {
         $data = [];
         $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
@@ -517,5 +627,27 @@ class EventTest extends TestCase
         $this->actingAs($event->creator)->postJson("api/events/{$event->id}/participants/detach", $data)
             ->assertForbidden()
             ->assertJson(['message' => 'event is already finished']);
+    }
+
+    public function test_verify_user_has_schedule_interface()
+    {
+        $this->expectExceptionMessage('the use model must be instanceof HasScheduleInterface');
+        (new EventController)->verifyUserHasScheduleInterface(Event::factory()->create());
+    }
+
+    public function test_verify_same_table()
+    {
+        config(['calendar-core.participant_model' => Event::class]);
+
+        $this->expectExceptionMessage("the config 'calendar-core.participant_model' doesn't match with auth user model (must have same database table)");
+        (new EventController)->verifySameTable('calendar-core.participant_model', User::factory()->create());
+    }
+
+    public function test_verify_is_has_schedule_interface()
+    {
+        config(['calendar-core.creator_model' => Event::class]);
+
+        $this->expectExceptionMessage("the config 'calendar-core.creator_model' must be instanceof HasScheduleInterface");
+        (new EventController)->verifyIsHasScheduleInterface('calendar-core.creator_model');
     }
 }
