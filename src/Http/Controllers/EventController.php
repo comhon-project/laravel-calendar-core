@@ -13,6 +13,7 @@ use Comhon\Calendar\Services\EventService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class EventController extends Controller
@@ -114,17 +115,30 @@ class EventController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request, EventService $eventService)
     {
         /** @var \Illuminate\Database\Eloquent\Model $authUser */
         $authUser = Auth::user();
         $this->verifySameTable('calendar-core.creator_model', $authUser);
+
         $this->authorize('create', Event::class);
 
         $validated = $this->validateRequest($request);
-        $event = new Event($validated);
-        $event->creator()->associate($authUser);
-        $event->save();
+        $event = DB::transaction(function () use ($validated, $eventService, $authUser) {
+            $event = new Event($validated);
+            $event->creator()->associate($authUser);
+            $event->save();
+
+            if (count($validated['participants']['participant_ids'] ?? [])) {
+                $eventService->syncParticipants(
+                    $event,
+                    $validated['participants']['participant_ids'],
+                    $validated['participants']['accepted'] ?? false
+                );
+            }
+
+            return $event;
+        });
 
         return new EventResource($event);
     }
@@ -231,13 +245,21 @@ class EventController extends Controller
     private function validateRequest(Request $request, ?Event $event = null)
     {
         $create = ! $event || ! $event->exists;
-
-        $validated = $request->validate([
+        $rules = [
             'name' => 'required|string|max:255',
-            ...($create ? $this->getSchedulePropertiesRules() : []),
-        ]);
+        ];
+        if ($create) {
+            $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
+            $rules = [
+                ...$rules,
+                ...$this->getSchedulePropertiesRules(),
+                'participants.participant_ids' => $this->GetParticipantIdsRules($participantClass, false),
+                'participants.accepted' => 'nullable|boolean',
 
-        return $this->toUTC($validated);
+            ];
+        }
+
+        return $this->toUTC($request->validate($rules));
     }
 
     /**

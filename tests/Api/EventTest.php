@@ -315,6 +315,42 @@ class EventTest extends TestCase
         PHPUnit::assertArraySubset($data, $event->toArray());
     }
 
+    public function test_store_event_with_participants_success()
+    {
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $startAt = Carbon::now()->addMinute()->setMicro(0)->toIsoString();
+        $endAt = Carbon::now()->addHour()->setMicro(0)->toIsoString();
+        $inputs = [
+            'name' => 'event name',
+            'start_at' => $startAt,
+            'end_at' => $endAt,
+            'participants' => [
+                'participant_ids' => [$consumer->id],
+                'accepted' => true,
+            ],
+        ];
+        $data = [
+            ...$inputs,
+        ];
+        unset($data['participants']);
+
+        $response = $this->actingAs($consumer)->postJson('api/events', $inputs)
+            ->assertCreated()
+            ->assertJsonStructure(['data' => ['id']]) // just verify if id is present
+            ->assertJson([
+                'data' => $data,
+            ]);
+
+        $event = Event::find($response->json('data.id'));
+        $this->assertNotNull($event);
+        PHPUnit::assertArraySubset($data, $event->toArray());
+
+        $this->assertEquals(1, $event->participants()->count());
+        $this->assertEquals($consumer->id, $event->participants()->first()->id);
+        $this->assertTrue($event->participants()->first()->pivot->accepted);
+    }
+
     public function test_store_event_forbidden()
     {
         $data = [];

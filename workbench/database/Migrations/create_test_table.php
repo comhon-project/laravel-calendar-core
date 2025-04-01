@@ -19,15 +19,15 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
         });
-        Schema::create('training_sessions', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('training_program_id')->constrained('training_programs');
-            $table->timestamps();
-            $table->softDeletes();
-        });
         Schema::create('training_programs', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->timestamps();
+            $table->softDeletes();
+        });
+        Schema::create('training_sessions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('training_program_id')->constrained('training_programs');
             $table->timestamps();
             $table->softDeletes();
         });

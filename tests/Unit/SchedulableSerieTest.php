@@ -9,10 +9,13 @@ use App\Models\TrainingSession;
 use Carbon\Carbon;
 use Comhon\Calendar\DTO\SchedulableSerie;
 use Comhon\Calendar\Models\Event;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SchedulableSerieTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_invalid_schedulable_serie_model()
     {
         $this->expectExceptionMessage('$model must be instance of eloquent Model');

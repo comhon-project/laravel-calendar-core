@@ -9,6 +9,7 @@ use App\Models\User;
 use Comhon\Calendar\CalendarServiceProvider;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
@@ -59,11 +60,12 @@ class TestCase extends Orchestra
             'database' => ':memory:',
         ]);
 
-        $migration = include __DIR__.'/../database/migrations/create_calendar_core_table.php.stub';
-        $migration->up();
-
-        $migration = include __DIR__.'/../workbench/database/Migrations/create_test_table.php';
-        $migration->up();
+        if (! Schema::hasTable('calendar_events')) {
+            $migration = include __DIR__.'/../workbench/database/Migrations/create_test_table.php';
+            $migration->up();
+            $migration = include __DIR__.'/../database/migrations/create_calendar_core_table.php.stub';
+            $migration->up();
+        }
 
         $this->setPoliciesFiles();
     }

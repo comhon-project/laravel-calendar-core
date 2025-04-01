@@ -4,10 +4,13 @@ namespace Tests\Feature\Unit;
 
 use Carbon\Carbon;
 use Comhon\Calendar\Models\Event;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class EventTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_generated_duration()
     {
         $startAt = Carbon::now();
