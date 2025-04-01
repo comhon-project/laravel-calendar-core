@@ -92,4 +92,12 @@ class TestCase extends Orchestra
             file_put_contents($testPolicyDir.'/'.$file, $policy);
         }
     }
+
+    public static function providerBoolean()
+    {
+        return [
+            [false],
+            [true],
+        ];
+    }
 }

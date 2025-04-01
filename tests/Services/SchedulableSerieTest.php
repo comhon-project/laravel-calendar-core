@@ -20,22 +20,6 @@ class SchedulableSerieTest extends TestCase
 {
     use RefreshDatabase;
 
-    public static function providerAccepted()
-    {
-        return [
-            [false],
-            [true],
-        ];
-    }
-
-    public static function providerFuture()
-    {
-        return [
-            [false],
-            [true],
-        ];
-    }
-
     public function getTrainingWithSessions(): TrainingProgram
     {
         return TrainingProgram::factory()
@@ -46,7 +30,7 @@ class SchedulableSerieTest extends TestCase
             ]), 'event'), 'sessions')->create();
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_set_participation_status_event_success($accepted)
     {
         $training = $this->getTrainingWithSessions();
@@ -81,7 +65,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_set_participation_status_event_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();
@@ -144,7 +128,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_cancel_events_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();
@@ -184,7 +168,7 @@ class SchedulableSerieTest extends TestCase
         $this->assertEquals(2, Event::withTrashed()->count());
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_schedulable_serie_success($accepted)
     {
         $training = $this->getTrainingWithSessions();
@@ -214,7 +198,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_schedulable_serie_with_already_attached_success($accepted)
     {
         $training = $this->getTrainingWithSessions();
@@ -270,7 +254,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_schedulable_serie_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();
@@ -361,7 +345,7 @@ class SchedulableSerieTest extends TestCase
         }
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_detach_praticipants_from_schedulable_serie_not_before_date($future)
     {
         $training = $this->getTrainingWithSessions();

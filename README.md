@@ -191,6 +191,13 @@ If you have Schedulable models or Schedulable Series model associated to events,
 
 All API routes are defined [here](https://github.com/comhon-project/laravel-calendar-core/blob/main/routes/routes.php)
 
+When you use routes that involve participants, you may want to scope allowed paricipants that may be synchronized on an event. To do so, you just have to register a class in the container that implements `ParticipantScoperInterface`.
+
+```php
+// in you AppServiceProvider
+$this->app->bind(ParticipantScoperInterface::class, YourParticipantScoper::class);
+```
+
 ## Tips
 
 ### Schedulable Series models and events aggregations

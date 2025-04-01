@@ -5,6 +5,7 @@ namespace Comhon\Calendar\Http\Controllers;
 use Carbon\Carbon;
 use Closure;
 use Comhon\Calendar\Contracts\HasScheduleInterface;
+use Comhon\Calendar\Contracts\ParticipantScoperInterface;
 use Comhon\Calendar\Http\Resources\EventResource;
 use Comhon\Calendar\Http\Resources\HasScheduleResource;
 use Comhon\Calendar\Models\Event;
@@ -12,6 +13,7 @@ use Comhon\Calendar\Services\EventService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class EventController extends Controller
 {
@@ -22,18 +24,14 @@ class EventController extends Controller
     {
         $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
         $validated = $request->validate([
-            'participant_ids' => [
-                'required',
-                ...$this->getArrayExistsRule($participantClass),
-            ],
-            'from' => 'required|date',
-            'to' => 'required|date',
+            'participant_ids' => $this->GetParticipantIdsRules($participantClass, true),
+            ...$this->getBaseScopeValidation(),
         ]);
 
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
 
         $participants = $participantClass::query()
-            ->with(['events' => fn ($query) => $this->scopeInterval($query, $validated)])
+            ->with(['events' => fn ($query) => $this->scopeEvents($query, $validated)])
             ->findOrFail($validated['participant_ids'], (new $participantClass)->getKeyName());
 
         return EventResource::collection($participants->pluck('events')->flatten());
@@ -48,13 +46,12 @@ class EventController extends Controller
         $this->authorize('view-auth-user-events', Event::class);
 
         $validated = $request->validate([
-            'from' => 'required|date',
-            'to' => 'required|date',
+            ...$this->getBaseScopeValidation(),
             'include_as_creator' => 'boolean',
         ]);
 
-        $scopeInterval = fn ($query) => $this->scopeInterval($query, $validated);
-        $events = $authUser->events()->where($scopeInterval)->get();
+        $scopeEvents = fn ($query) => $this->scopeEvents($query, $validated);
+        $events = $authUser->events()->where($scopeEvents)->get();
 
         $includeAsCreator = $validated['include_as_creator'] ?? false;
         if ($includeAsCreator) {
@@ -62,7 +59,7 @@ class EventController extends Controller
             $creatorButNotParticipant = Event::query()
                 ->where('creator_id', $authUser->getKey())
                 ->whereDoesntHave('participants', fn ($query) => $query->where($authUser->getKeyName(), $authUser->getKey()))
-                ->where($scopeInterval)
+                ->where($scopeEvents)
                 ->get();
 
             $events = $events->merge($creatorButNotParticipant);
@@ -71,13 +68,37 @@ class EventController extends Controller
         return EventResource::collection($events);
     }
 
+    private function getBaseScopeValidation(): array
+    {
+        return [
+            'from' => 'required|date',
+            'to' => 'required|date',
+            'types' => 'nullable|array',
+            'types.*' => 'nullable|string',
+        ];
+    }
+
     /**
      * @param  array  $inputs  must be already validated
      */
-    private function scopeInterval($query, array $inputs)
+    private function scopeEvents($query, array $inputs)
     {
+        $hasNullValue = isset($inputs['types']) && in_array(null, $inputs['types']);
+        if ($hasNullValue) {
+            $inputs['types'] = array_filter($inputs['types'], fn ($value) => $value !== null);
+        }
+
         $query->where('end_at', '>', Carbon::parse($inputs['from'])->tz('UTC'))
-            ->where('start_at', '<', Carbon::parse($inputs['to'])->tz('UTC'));
+            ->where('start_at', '<', Carbon::parse($inputs['to'])->tz('UTC'))
+            ->where(function ($query) use ($inputs, $hasNullValue) {
+                $query->when(
+                    isset($inputs['types']),
+                    fn ($query) => $query->whereIn('schedulable_type', $inputs['types'])
+                )->when(
+                    $hasNullValue,
+                    fn ($query) => $query->orWhereNull('schedulable_type')
+                );
+            });
     }
 
     /**
@@ -156,10 +177,7 @@ class EventController extends Controller
         $participantClass = config('calendar-core.participant_model');
         $validated = $request->validate([
             'accepted' => 'nullable|boolean',
-            'participant_ids' => [
-                'required',
-                ...$this->getArrayExistsRule($participantClass),
-            ],
+            'participant_ids' => $this->GetParticipantIdsRules($participantClass, true),
         ]);
 
         $eventService->syncParticipants($event, $validated['participant_ids'], $validated['accepted'] ?? false);
@@ -173,10 +191,7 @@ class EventController extends Controller
 
         $participantClass = config('calendar-core.participant_model');
         $validated = $request->validate([
-            'participant_ids' => [
-                'required',
-                ...$this->getArrayExistsRule($participantClass),
-            ],
+            'participant_ids' => $this->GetParticipantIdsRules($participantClass, true),
         ]);
 
         $eventService->detachParticipants($event, $validated['participant_ids']);
@@ -248,11 +263,12 @@ class EventController extends Controller
         ];
     }
 
-    private function getArrayExistsRule(string $modelClass): array
+    private function GetParticipantIdsRules(string $modelClass, bool $required = false): array
     {
         $key = (new $modelClass)->getKeyName();
 
         return [
+            $required ? 'required' : 'nullable',
             'array',
             function (string $attribute, mixed $value, Closure $fail) {
                 foreach ($value as $element) {
@@ -261,7 +277,10 @@ class EventController extends Controller
                     }
                 }
             },
-            "exists:{$modelClass},{$key}",
+            Rule::exists($modelClass, $key)->when(
+                app()->bound(ParticipantScoperInterface::class),
+                fn ($query) => app(ParticipantScoperInterface::class)->scope($query, Auth::user())
+            ),
         ];
     }
 

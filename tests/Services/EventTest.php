@@ -24,14 +24,6 @@ class EventTest extends TestCase
 {
     use RefreshDatabase;
 
-    public static function providerAccepted()
-    {
-        return [
-            [false],
-            [true],
-        ];
-    }
-
     public function test_get_schedulable_events_query_success()
     {
         /** @var SchedulableInterface $schedulable */
@@ -205,7 +197,7 @@ class EventTest extends TestCase
         app(EventService::class)->reschedule($event, $newStart, $newEnd);
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_set_participation_status_event_success($accepted)
     {
         $event = Event::factory()->create();
@@ -240,7 +232,7 @@ class EventTest extends TestCase
         $this->assertNotNull(Event::withTrashed()->find($event->id));
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_event_success($accepted)
     {
         $event = Event::factory()->create();
@@ -265,7 +257,7 @@ class EventTest extends TestCase
         }
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_event_with_already_attached_success($accepted)
     {
         $event = Event::factory()->create();

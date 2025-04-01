@@ -3,12 +3,16 @@
 namespace Tests\Feature\Api;
 
 use App\Models\User;
+use App\Services\ParticipantScoperAll;
+use App\Services\ParticipantScoperAuth;
 use Carbon\Carbon;
+use Comhon\Calendar\Contracts\ParticipantScoperInterface;
 use Comhon\Calendar\Http\Controllers\EventController;
 use Comhon\Calendar\Models\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use Illuminate\Testing\Assert as PHPUnit;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class EventTest extends TestCase
@@ -205,6 +209,46 @@ class EventTest extends TestCase
         ]);
         $this->actingAs($consumer)->getJson("api/user/events?{$params}")
             ->assertForbidden();
+    }
+
+    #[DataProvider('providerBoolean')]
+    public function test_list_auth_user_events_with_type_filter_success($hasNullValue)
+    {
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        Event::factory(['schedulable_type' => 'foo'])->hasAttached($consumer, [], 'participants')->create();
+        Event::factory(['schedulable_type' => 'bar'])->hasAttached($consumer, [], 'participants')->create();
+        Event::factory(['schedulable_type' => null])->hasAttached($consumer, [], 'participants')->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'types' => [
+                ...($hasNullValue ? [''] : []),
+                'foo',
+            ],
+        ]);
+
+        $expectedCount = $hasNullValue ? 2 : 1;
+        $data = $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount($expectedCount, 'data')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'name',
+                        'creator_id',
+                        'start_at',
+                        'end_at',
+                        'schedulable_id',
+                        'schedulable_type',
+                        'created_at',
+                        'updated_at',
+                        'deleted_at',
+                    ],
+                ],
+            ]);
     }
 
     public function test_get_event_success()
@@ -563,6 +607,32 @@ class EventTest extends TestCase
         $this->assertEquals(4, $event->participants()->count());
         $this->assertTrue($new1->events()->first()->pivot->accepted);
         $this->assertTrue($new2->events()->first()->pivot->accepted);
+    }
+
+    #[DataProvider('providerBoolean')]
+    public function test_sync_participant_event_with_participant_scope($all)
+    {
+        $scoper = $all ? ParticipantScoperAll::class : ParticipantScoperAuth::class;
+        $this->app->bind(ParticipantScoperInterface::class, $scoper);
+        $event = Event::factory()->create();
+        $notAccepted = User::factory()->create();
+
+        $consumer = $event->creator;
+        $inputs = [
+            'participant_ids' => [
+                $consumer->id,
+                $notAccepted->id,
+            ],
+        ];
+        LaravelEvent::fake();
+        $request = $this->actingAs($consumer)->postJson("api/events/{$event->id}/participants/sync", $inputs);
+
+        if ($all) {
+            $request->assertNoContent();
+        } else {
+            $request->assertUnprocessable()
+                ->assertJson(['message' => 'The selected participant ids is invalid.']);
+        }
     }
 
     public function test_sync_participant_event_forbidden_abilities()

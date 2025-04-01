@@ -21,23 +21,7 @@ class SchedulableTest extends TestCase
 {
     use RefreshDatabase;
 
-    public static function providerAccepted()
-    {
-        return [
-            [false],
-            [true],
-        ];
-    }
-
-    public static function providerFuture()
-    {
-        return [
-            [false],
-            [true],
-        ];
-    }
-
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_set_participation_status_event_success($accepted)
     {
         /** @var TrainingSession $schedulable */
@@ -64,7 +48,7 @@ class SchedulableTest extends TestCase
         $this->assertNull($users[1]->events->first()->pivot->accept_choice_at);
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_set_participation_status_event_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
@@ -138,7 +122,7 @@ class SchedulableTest extends TestCase
         $this->assertNotNull(Event::withTrashed()->find($eventTwo->id));
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_cancel_events_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
@@ -296,7 +280,7 @@ class SchedulableTest extends TestCase
         app(SchedulableService::class)->reschedule($schedulable, $startAt, $endAt);
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_schedulable_success($accepted)
     {
         /** @var TrainingSession $schedulable */
@@ -322,7 +306,7 @@ class SchedulableTest extends TestCase
         }
     }
 
-    #[DataProvider('providerAccepted')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_schedulable_with_already_attached_success($accepted)
     {
         /** @var TrainingSession $schedulable */
@@ -364,7 +348,7 @@ class SchedulableTest extends TestCase
         $this->assertFalse($participants[0]->pivot->accepted); // must stay unchanged
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_sync_praticipants_to_schedulable_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
@@ -433,7 +417,7 @@ class SchedulableTest extends TestCase
         $this->assertCount(0, $schedulable->refresh()->event->participants);
     }
 
-    #[DataProvider('providerFuture')]
+    #[DataProvider('providerBoolean')]
     public function test_detach_praticipants_from_schedulable_not_before_date($future)
     {
         /** @var TrainingSession $schedulable */
