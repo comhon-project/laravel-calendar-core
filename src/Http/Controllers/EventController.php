@@ -25,7 +25,7 @@ class EventController extends Controller
     {
         $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
         $validated = $request->validate([
-            'participant_ids' => $this->GetParticipantIdsRules($participantClass, true),
+            'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
             ...$this->getBaseScopeValidation(),
         ]);
 
@@ -191,7 +191,7 @@ class EventController extends Controller
         $participantClass = config('calendar-core.participant_model');
         $validated = $request->validate([
             'accepted' => 'nullable|boolean',
-            'participant_ids' => $this->GetParticipantIdsRules($participantClass, true),
+            'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
         ]);
 
         $eventService->syncParticipants($event, $validated['participant_ids'], $validated['accepted'] ?? false);
@@ -205,7 +205,7 @@ class EventController extends Controller
 
         $participantClass = config('calendar-core.participant_model');
         $validated = $request->validate([
-            'participant_ids' => $this->GetParticipantIdsRules($participantClass, true),
+            'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
         ]);
 
         $eventService->detachParticipants($event, $validated['participant_ids']);
@@ -253,7 +253,7 @@ class EventController extends Controller
             $rules = [
                 ...$rules,
                 ...$this->getSchedulePropertiesRules(),
-                'participants.participant_ids' => $this->GetParticipantIdsRules($participantClass, false),
+                'participants.participant_ids' => $this->getParticipantIdsRules($participantClass, false),
                 'participants.accepted' => 'nullable|boolean',
 
             ];
@@ -285,7 +285,7 @@ class EventController extends Controller
         ];
     }
 
-    private function GetParticipantIdsRules(string $modelClass, bool $required = false): array
+    private function getParticipantIdsRules(string $modelClass, bool $required = false): array
     {
         $key = (new $modelClass)->getKeyName();
 
