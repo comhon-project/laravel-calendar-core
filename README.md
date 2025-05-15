@@ -210,7 +210,7 @@ When you use following routes :
 
 You can embed schedulable models of each event in the response by loading and exporting them as needed.
 
-To do so, the client must send the query parameter `embed_morphed_models` set to `1`. And your backend application must define the exporters for schedulable models. To define exporters, follow the documentation of the project `laravel-morphed-model-exporter` that is used under the hood. You can read only the chapter to register exporters [here](https://github.com/comhon-project/laravel-morphed-model-exporter?tab=readme-ov-file#register-exporters).
+To do so, the client must send the query parameter `embed_schedulable` set to `1`. And your backend application must define the exporters for schedulable models. To define exporters, follow the documentation of the project `laravel-morphed-model-exporter` that is used under the hood. You can read only the chapter to register exporters [here](https://github.com/comhon-project/laravel-morphed-model-exporter?tab=readme-ov-file#register-exporters).
 
 ## Tips
 

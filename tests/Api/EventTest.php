@@ -152,7 +152,7 @@ class EventTest extends TestCase
             'participant_ids' => [$user->id],
             'from' => Carbon::now()->subDay()->toIsoString(),
             'to' => Carbon::now()->addDay()->toIsoString(),
-            'embed_morphed_models' => $embedMorphedModels,
+            'embed_schedulable' => $embedMorphedModels,
         ]);
         $response = $this->actingAs($consumer)->getJson("api/events?{$params}")
             ->assertOk()
@@ -230,7 +230,7 @@ class EventTest extends TestCase
             'participant_ids' => [$user->id],
             'from' => Carbon::now()->subDay()->toIsoString(),
             'to' => Carbon::now()->addDay()->toIsoString(),
-            'embed_morphed_models' => true,
+            'embed_schedulable' => true,
         ]);
         $data = $this->actingAs($consumer)->getJson("api/events?{$params}")
             ->assertOk()
@@ -357,7 +357,7 @@ class EventTest extends TestCase
         $params = http_build_query([
             'from' => Carbon::now()->subDay()->toIsoString(),
             'to' => Carbon::now()->addDay()->toIsoString(),
-            'embed_morphed_models' => $embedMorphedModels,
+            'embed_schedulable' => $embedMorphedModels,
         ]);
         $response = $this->actingAs($consumer)->getJson("api/user/events?{$params}")
             ->assertOk()

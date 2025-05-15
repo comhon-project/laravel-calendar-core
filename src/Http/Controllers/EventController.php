@@ -28,7 +28,7 @@ class EventController extends Controller
         $validated = $request->validate([
             'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
             ...$this->getBaseScopeValidation(),
-            'embed_morphed_models' => 'boolean',
+            'embed_schedulable' => 'boolean',
         ]);
 
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
@@ -39,7 +39,7 @@ class EventController extends Controller
             ->pluck('events')
             ->flatten();
 
-        if ($request->boolean('embed_morphed_models')) {
+        if ($request->boolean('embed_schedulable')) {
             MorphedModelExporter::loadMorphedModels($events, 'schedulable');
         }
 
@@ -65,7 +65,7 @@ class EventController extends Controller
         $validated = $request->validate([
             ...$this->getBaseScopeValidation(),
             'include_as_creator' => 'boolean',
-            'embed_morphed_models' => 'boolean',
+            'embed_schedulable' => 'boolean',
         ]);
 
         $scopeEvents = fn ($query) => $this->scopeEvents($query, $validated);
@@ -83,7 +83,7 @@ class EventController extends Controller
             $events = $events->merge($creatorButNotParticipant);
         }
 
-        if ($request->boolean('embed_morphed_models')) {
+        if ($request->boolean('embed_schedulable')) {
             MorphedModelExporter::loadMorphedModels($events, 'schedulable');
         }
 
