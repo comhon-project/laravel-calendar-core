@@ -191,12 +191,26 @@ If you have Schedulable models or Schedulable Series model associated to events,
 
 All API routes are defined [here](https://github.com/comhon-project/laravel-calendar-core/blob/main/routes/routes.php)
 
+#### Participants Scoper
+
 When you use routes that involve participants, you may want to scope allowed paricipants that may be synchronized on an event. To do so, you just have to register a class in the container that implements `ParticipantScoperInterface`.
 
 ```php
 // in you AppServiceProvider
 $this->app->bind(ParticipantScoperInterface::class, YourParticipantScoper::class);
 ```
+
+#### Schedulable model exporters
+
+When you use following routes :
+
+-   `GET /events`
+-   `GET /user/events`
+-   `GET /users/{user}/events`
+
+You can embed schedulable models of each event in the response by loading and exporting them as needed.
+
+To do so, the client must send the query parameter `embed_morphed_models` set to `1`. And your backend application must define the exporters for schedulable models. To define exporters, follow the documentation of the project `laravel-morphed-model-exporter` that is used under the hood. You can read only the chapter to register exporters [here](https://github.com/comhon-project/laravel-morphed-model-exporter?tab=readme-ov-file#register-exporters).
 
 ## Tips
 
