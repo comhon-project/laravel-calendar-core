@@ -183,7 +183,7 @@ class EventTest extends TestCase
                         'schedulable_id' => $trainingSession->id,
                         'schedulable_type' => 'session',
                         'schedulable' => [
-                            'id' => 1,
+                            'id' => $trainingSession->id,
                             'training_program_id' => $trainingSession->program->id,
                             'program' => [
                                 'id' => $trainingSession->program->id,
@@ -195,7 +195,7 @@ class EventTest extends TestCase
                         'schedulable_id' => $appointment->id,
                         'schedulable_type' => 'appointment',
                         'schedulable' => [
-                            'id' => 1,
+                            'id' => $appointment->id,
                             'created_at' => $appointment->created_at->toIsoString(),
                         ],
                     ],
@@ -380,7 +380,7 @@ class EventTest extends TestCase
                             'schedulable_id' => $trainingSession->id,
                             'schedulable_type' => 'session',
                             'schedulable' => [
-                                'id' => 1,
+                                'id' => $trainingSession->id,
                                 'training_program_id' => $trainingSession->program->id,
                                 'program' => [
                                     'id' => $trainingSession->program->id,
