@@ -6,10 +6,9 @@ use Comhon\Calendar\Contracts\SchedulableInterface;
 use Comhon\Calendar\Traits\SchedulableUniqueTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class TrainingSession extends Model implements SchedulableInterface
+class Appointment extends Model implements SchedulableInterface
 {
     use HasFactory;
     use SchedulableUniqueTrait;
@@ -22,13 +21,8 @@ class TrainingSession extends Model implements SchedulableInterface
      */
     protected $fillable = [];
 
-    public function program(): BelongsTo
-    {
-        return $this->belongsTo(TrainingProgram::class, 'training_program_id');
-    }
-
     public function getEventName(): string
     {
-        return 'training session';
+        return 'appointment';
     }
 }

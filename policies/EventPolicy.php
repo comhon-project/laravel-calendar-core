@@ -22,9 +22,9 @@ class EventPolicy
     /**
      * Determine whether the user can view his events.
      */
-    public function viewAuthUserEvents(User $user)
+    public function viewUserEvents(User $user, $eventsUser)
     {
-        // TODO put your authorization logic here
+        return $user->is($eventsUser);
     }
 
     /**

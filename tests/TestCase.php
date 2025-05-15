@@ -2,13 +2,10 @@
 
 namespace Tests;
 
-use App\Models\TrainingProgram;
-use App\Models\TrainingProgramSimple;
-use App\Models\TrainingSession;
 use App\Models\User;
+use App\Providers\WorkbenchServiceProvider;
 use Comhon\Calendar\CalendarServiceProvider;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -19,26 +16,21 @@ class TestCase extends Orchestra
         parent::setUp();
 
         Factory::guessFactoryNamesUsing(
-            fn (string $modelName) => str_contains($modelName, 'App\\')
-                ? 'Workbench\\Database\\Factories\\'.class_basename($modelName).'Factory'
-                : 'Comhon\\Calendar\\Database\\Factories\\'.class_basename($modelName).'Factory'
+            fn (string $modelName) => str_contains($modelName, 'Calendar\\')
+                ? 'Comhon\\Calendar\\Database\\Factories\\'.class_basename($modelName).'Factory'
+                : 'Database\\Factories\\'.class_basename($modelName).'Factory'
         );
         Factory::guessModelNamesUsing(
-            fn ($factory) => str_contains(get_class($factory), 'Workbench\\')
-             ? 'App\\Models\\'.str_replace('Factory', '', class_basename(get_class($factory)))
-             : 'Comhon\\Calendar\\Models\\'.str_replace('Factory', '', class_basename(get_class($factory)))
+            fn ($factory) => str_contains(get_class($factory), 'Calendar\\')
+             ? 'Comhon\\Calendar\\Models\\'.str_replace('Factory', '', class_basename(get_class($factory)))
+             : 'App\\Models\\'.str_replace('Factory', '', class_basename(get_class($factory)))
         );
-        Relation::enforceMorphMap([
-            'user' => User::class,
-            'program' => TrainingProgram::class,
-            'session' => TrainingSession::class,
-            'program-simple' => TrainingProgramSimple::class,
-        ]);
     }
 
     protected function getPackageProviders($app)
     {
         return [
+            WorkbenchServiceProvider::class,
             CalendarServiceProvider::class,
         ];
     }
@@ -54,11 +46,6 @@ class TestCase extends Orchestra
         config()->set('calendar-core.api.middleware', ['api', 'auth']);
         config()->set('calendar-core.api.prefix', 'api');
         config()->set('calendar-core.use_policies', true);
-        config()->set('database.default', 'testing');
-        config()->set('database.connections.testing', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
 
         if (! Schema::hasTable('calendar_events')) {
             $migration = include __DIR__.'/../workbench/database/Migrations/create_test_table.php';
@@ -73,16 +60,16 @@ class TestCase extends Orchestra
     public function setPoliciesFiles()
     {
         $stubPolicyDir = __DIR__.'/../policies';
-        $testPolicyDir = __DIR__.'/../workbench/app/Policies/Calendar';
+        $appPolicyDir = __DIR__.'/../workbench/app/Policies/Calendar';
 
-        if (file_exists($testPolicyDir)) {
-            $files = array_diff(scandir($testPolicyDir), ['.', '..']);
+        if (file_exists($appPolicyDir)) {
+            $files = array_diff(scandir($appPolicyDir), ['.', '..']);
             foreach ($files as $file) {
-                unlink($testPolicyDir.'/'.$file);
+                unlink($appPolicyDir.'/'.$file);
             }
-            rmdir($testPolicyDir);
+            rmdir($appPolicyDir);
         }
-        mkdir($testPolicyDir, 0775, true);
+        mkdir($appPolicyDir, 0775, true);
 
         $files = array_diff(scandir($stubPolicyDir), ['.', '..']);
         foreach ($files as $file) {
@@ -91,7 +78,7 @@ class TestCase extends Orchestra
                 ['return $user->has_consumer_ability == true;', 'App\Models\User'],
                 file_get_contents($stubPolicyDir.'/'.$file),
             );
-            file_put_contents($testPolicyDir.'/'.$file, $policy);
+            file_put_contents($appPolicyDir.'/'.$file, $policy);
         }
     }
 

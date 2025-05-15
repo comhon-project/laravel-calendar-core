@@ -1,6 +1,6 @@
 <?php
 
-namespace Workbench\Database\Factories;
+namespace Database\Factories;
 
 use App\Models\TrainingProgram;
 use Illuminate\Database\Eloquent\Factories\Factory;

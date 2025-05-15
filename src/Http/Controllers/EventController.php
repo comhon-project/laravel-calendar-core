@@ -10,6 +10,7 @@ use Comhon\Calendar\Http\Resources\EventResource;
 use Comhon\Calendar\Http\Resources\HasScheduleResource;
 use Comhon\Calendar\Models\Event;
 use Comhon\Calendar\Services\EventService;
+use Comhon\MorphedModelExporter\Facades\MorphedModelExporter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,43 +28,63 @@ class EventController extends Controller
         $validated = $request->validate([
             'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
             ...$this->getBaseScopeValidation(),
+            'embed_morphed_models' => 'boolean',
         ]);
 
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
 
-        $participants = $participantClass::query()
+        $events = $participantClass::query()
             ->with(['events' => fn ($query) => $this->scopeEvents($query, $validated)])
-            ->findOrFail($validated['participant_ids'], (new $participantClass)->getKeyName());
+            ->findOrFail($validated['participant_ids'], (new $participantClass)->getKeyName())
+            ->pluck('events')
+            ->flatten();
 
-        return EventResource::collection($participants->pluck('events')->flatten());
+        if ($request->boolean('embed_morphed_models')) {
+            MorphedModelExporter::loadMorphedModels($events, 'schedulable');
+        }
+
+        return EventResource::collection($events);
     }
 
-    public function listUserEvents(Request $request)
+    public function listAuthUserEvents(Request $request)
     {
         /** @var \Illuminate\Database\Eloquent\Model|HasScheduleInterface $authUser */
         $authUser = Auth::user();
-        $this->verifyUserHasScheduleInterface($authUser);
         $this->verifySameTable('calendar-core.participant_model', $authUser);
-        $this->authorize('view-auth-user-events', Event::class);
+
+        return $this->listUserEvents($request, $authUser);
+    }
+
+    public function listUserEvents(Request $request, $user)
+    {
+        /** @var \Illuminate\Database\Eloquent\Model|HasScheduleInterface $user */
+        $user = is_object($user) ? $user : app(config('calendar-core.participant_model'))->findOrFail($user);
+        $this->verifyUserHasScheduleInterface($user);
+        $this->authorize('view-user-events', [Event::class, $user]);
 
         $validated = $request->validate([
             ...$this->getBaseScopeValidation(),
             'include_as_creator' => 'boolean',
+            'embed_morphed_models' => 'boolean',
         ]);
 
         $scopeEvents = fn ($query) => $this->scopeEvents($query, $validated);
-        $events = $authUser->events()->where($scopeEvents)->get();
+        $events = $user->events()->where($scopeEvents)->get();
 
         $includeAsCreator = $validated['include_as_creator'] ?? false;
         if ($includeAsCreator) {
-            $this->verifySameTable('calendar-core.creator_model', $authUser);
+            $this->verifySameTable('calendar-core.creator_model', $user);
             $creatorButNotParticipant = Event::query()
-                ->where('creator_id', $authUser->getKey())
-                ->whereDoesntHave('participants', fn ($query) => $query->where($authUser->getKeyName(), $authUser->getKey()))
+                ->where('creator_id', $user->getKey())
+                ->whereDoesntHave('participants', fn ($query) => $query->where($user->getKeyName(), $user->getKey()))
                 ->where($scopeEvents)
                 ->get();
 
             $events = $events->merge($creatorButNotParticipant);
+        }
+
+        if ($request->boolean('embed_morphed_models')) {
+            MorphedModelExporter::loadMorphedModels($events, 'schedulable');
         }
 
         return EventResource::collection($events);
@@ -323,9 +344,9 @@ class EventController extends Controller
         return $configClass;
     }
 
-    public function verifyUserHasScheduleInterface(object $authUser)
+    public function verifyUserHasScheduleInterface(object $user)
     {
-        if (! $authUser instanceof HasScheduleInterface) {
+        if (! $user instanceof HasScheduleInterface) {
             throw new \Exception('the use model must be instanceof HasScheduleInterface');
         }
     }

@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Api;
 
+use App\Http\Resources\AppointmentResource;
+use App\Models\Appointment;
+use App\Models\TrainingSession;
 use App\Models\User;
 use App\Services\ParticipantScoperAll;
 use App\Services\ParticipantScoperAuth;
@@ -18,6 +21,21 @@ use Tests\TestCase;
 class EventTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function registerShedulableExporters(array $exporters)
+    {
+        app()->bind('morphed-model-exporters', function () use ($exporters) {
+            return new class($exporters)
+            {
+                public function __construct(private array $exporters) {}
+
+                public function __invoke()
+                {
+                    return $this->exporters;
+                }
+            };
+        });
+    }
 
     public function test_list_events_success()
     {
@@ -64,10 +82,169 @@ class EventTest extends TestCase
                         ],
                     ],
                 ],
-            ])->json('data');
+            ])->assertJsonMissingPath('data.0.schedulable')
+            ->json('data');
 
         $this->assertCount(2, collect($data)->filter(fn ($item) => $item['pivot']['participant_id'] == $user1->id));
         $this->assertCount(1, collect($data)->filter(fn ($item) => $item['pivot']['participant_id'] == $user2->id));
+    }
+
+    public function test_list_events_with_schedulable_without_exporter_success()
+    {
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+
+        /** @var Appointment $appointment */
+        $appointment = Appointment::factory()->has(Event::factory(), 'event')->create();
+
+        $user = User::factory()
+            ->hasAttached($trainingSession->event, [], 'events')
+            ->hasAttached($appointment->event, [], 'events')->create();
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ]);
+        $data = $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'schedulable_id',
+                        'schedulable_type',
+                    ],
+                ],
+            ])->assertJsonMissingPath('data.0.schedulable');
+    }
+
+    #[DataProvider('providerBoolean')]
+    public function test_list_events_with_schedulable_with_exporter_success($embedMorphedModels)
+    {
+        $this->registerShedulableExporters([
+            TrainingSession::class => [
+                'query_builder' => fn ($query) => $query->with('program:id,name')->select('id', 'training_program_id'),
+                'model_exporter' => fn ($model) => $model,
+            ],
+            Appointment::class => [
+                'model_exporter' => AppointmentResource::class,
+            ],
+        ]);
+
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+
+        /** @var Appointment $appointment */
+        $appointment = Appointment::factory()->has(Event::factory(), 'event')->create();
+
+        $user = User::factory()
+            ->hasAttached($trainingSession->event, [], 'events')
+            ->hasAttached($appointment->event, [], 'events')
+            ->create();
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_morphed_models' => $embedMorphedModels,
+        ]);
+        $response = $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'schedulable_id',
+                        'schedulable_type',
+                    ],
+                ],
+            ]);
+
+        if ($embedMorphedModels) {
+            $response->assertJsonStructure(['data' => ['*' => ['schedulable']]]);
+            $data = collect($response->json('data'))->sortBy('id')->map(function ($item) {
+                return [
+                    'schedulable_id' => $item['schedulable_id'],
+                    'schedulable_type' => $item['schedulable_type'],
+                    'schedulable' => $item['schedulable'],
+                ];
+            });
+
+            $this->assertEquals(
+                [
+                    [
+                        'schedulable_id' => $trainingSession->id,
+                        'schedulable_type' => 'session',
+                        'schedulable' => [
+                            'id' => 1,
+                            'training_program_id' => $trainingSession->program->id,
+                            'program' => [
+                                'id' => $trainingSession->program->id,
+                                'name' => $trainingSession->program->name,
+                            ],
+                        ],
+                    ],
+                    [
+                        'schedulable_id' => $appointment->id,
+                        'schedulable_type' => 'appointment',
+                        'schedulable' => [
+                            'id' => 1,
+                            'created_at' => $appointment->created_at->toIsoString(),
+                        ],
+                    ],
+                ],
+                $data->toArray()
+            );
+        } else {
+            $response->assertJsonMissingPath('data.0.schedulable');
+        }
+    }
+
+    public function test_list_events_with_schedulable_with_unused_exporter_success()
+    {
+        $this->registerShedulableExporters([
+            TrainingSession::class => [
+                'query_builder' => fn ($query) => $query->with('program:id,name')->select('id', 'training_program_id'),
+                'model_exporter' => fn ($model) => $model,
+            ],
+        ]);
+
+        /** @var Appointment $appointment */
+        $appointment = Appointment::factory()->has(Event::factory(), 'event')->create();
+
+        $user = User::factory()
+            ->hasAttached(Event::factory(), [], 'events')
+            ->hasAttached($appointment->event, [], 'events')
+            ->create();
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_morphed_models' => true,
+        ]);
+        $data = $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'schedulable_id',
+                        'schedulable_type',
+                    ],
+                ],
+            ])->assertJsonMissingPath('data.0.schedulable')
+            ->assertJsonMissingPath('data.1.schedulable');
     }
 
     public function test_list_events_unprocessable()
@@ -133,7 +310,7 @@ class EventTest extends TestCase
             'from' => Carbon::now()->subDay()->toIsoString(),
             'to' => Carbon::now()->addDay()->toIsoString(),
         ]);
-        $data = $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+        $this->actingAs($consumer)->getJson("api/user/events?{$params}")
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonStructure([
@@ -157,6 +334,65 @@ class EventTest extends TestCase
                     ],
                 ],
             ])->assertJsonPath('data.0.pivot.participant_id', $consumer->id);
+    }
+
+    #[DataProvider('providerBoolean')]
+    public function test_list_auth_user_events_with_schedulable_with_exporter_success($embedMorphedModels)
+    {
+        $this->registerShedulableExporters([
+            TrainingSession::class => [
+                'query_builder' => fn ($query) => $query->with('program:id,name')->select('id', 'training_program_id'),
+                'model_exporter' => fn ($model) => $model,
+            ],
+        ]);
+
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+
+        $consumer = User::factory()
+            ->hasAttached($trainingSession->event, [], 'events')
+            ->hasConsumerAbility()
+            ->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_morphed_models' => $embedMorphedModels,
+        ]);
+        $response = $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'schedulable_id',
+                        'schedulable_type',
+                    ],
+                ],
+            ]);
+
+        if ($embedMorphedModels) {
+            $response->assertJsonStructure(['data' => ['*' => ['schedulable']]])
+                ->assertJson([
+                    'data' => [
+                        '0' => [
+                            'schedulable_id' => $trainingSession->id,
+                            'schedulable_type' => 'session',
+                            'schedulable' => [
+                                'id' => 1,
+                                'training_program_id' => $trainingSession->program->id,
+                                'program' => [
+                                    'id' => $trainingSession->program->id,
+                                    'name' => $trainingSession->program->name,
+                                ],
+                            ],
+                        ],
+                    ],
+                ]);
+        } else {
+            $response->assertJsonMissingPath('data.0.schedulable');
+        }
     }
 
     public function test_list_auth_user_events_with_as_creator_success()
@@ -199,18 +435,6 @@ class EventTest extends TestCase
             ->assertJsonMissingPath('data.1.pivot');
     }
 
-    public function test_list_auth_user_events_forbidden()
-    {
-        $consumer = User::factory()->create();
-
-        $params = http_build_query([
-            'from' => Carbon::now()->subDay()->toIsoString(),
-            'to' => Carbon::now()->addDay()->toIsoString(),
-        ]);
-        $this->actingAs($consumer)->getJson("api/user/events?{$params}")
-            ->assertForbidden();
-    }
-
     #[DataProvider('providerBoolean')]
     public function test_list_auth_user_events_with_type_filter_success($hasNullValue)
     {
@@ -249,6 +473,34 @@ class EventTest extends TestCase
                     ],
                 ],
             ]);
+    }
+
+    public function test_list_user_events_success()
+    {
+        /** @var User $consumer */
+        $consumer = User::factory()->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ]);
+        $this->actingAs($consumer)->getJson("api/users/{$consumer->id}/events?{$params}")
+            ->assertOk();
+    }
+
+    public function test_list_user_events_forbidden()
+    {
+        /** @var User $consumer */
+        $consumer = User::factory()->create();
+
+        $user = User::factory()->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ]);
+        $this->actingAs($consumer)->getJson("api/users/{$user->id}/events?{$params}")
+            ->assertForbidden();
     }
 
     public function test_get_event_success()
@@ -318,7 +570,6 @@ class EventTest extends TestCase
     public function test_store_event_with_participants_success()
     {
         $consumer = User::factory()->hasConsumerAbility()->create();
-
         $startAt = Carbon::now()->addMinute()->setMicro(0)->toIsoString();
         $endAt = Carbon::now()->addHour()->setMicro(0)->toIsoString();
         $inputs = [
