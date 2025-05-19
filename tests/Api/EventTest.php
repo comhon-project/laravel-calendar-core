@@ -42,14 +42,16 @@ class EventTest extends TestCase
         $user1 = User::factory()->create();
         $user2 = User::factory()->create();
 
+        // events that must be returned
         Event::factory(2)->hasAttached($user1, [], 'participants')->create();
 
+        // events that must NOT be returned
+        Event::factory()->hasAttached($user1, [], 'participants')->create()->delete();
         Event::factory()->hasAttached($user2, [], 'participants')->create();
         Event::factory([
             'start_at' => Carbon::now()->addYear(),
             'end_at' => Carbon::now()->addYear()->addHour(),
         ])->hasAttached($user2, [], 'participants')->create();
-
         Event::factory()->hasAttached(User::factory()->create(), [], 'participants')->create();
 
         $consumer = User::factory()->hasConsumerAbility()->create();
@@ -87,6 +89,27 @@ class EventTest extends TestCase
 
         $this->assertCount(2, collect($data)->filter(fn ($item) => $item['pivot']['participant_id'] == $user1->id));
         $this->assertCount(1, collect($data)->filter(fn ($item) => $item['pivot']['participant_id'] == $user2->id));
+    }
+
+    #[DataProvider('providerBoolean')]
+    public function test_list_events_with_canceled($embedCanceled)
+    {
+        $user = User::factory()->create();
+
+        Event::factory()->hasAttached($user, [], 'participants')->create();
+        Event::factory()->hasAttached($user, [], 'participants')->create()->delete();
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_canceled' => $embedCanceled,
+        ]);
+        $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount($embedCanceled ? 2 : 1, 'data');
     }
 
     public function test_list_events_with_schedulable_without_exporter_success()
@@ -297,13 +320,16 @@ class EventTest extends TestCase
     {
         $consumer = User::factory()->hasConsumerAbility()->create();
 
+        // events that must be returned
         Event::factory()->hasAttached($consumer, [], 'participants')->create();
+
+        // events that must NOT be returned
+        Event::factory()->hasAttached($consumer, [], 'participants')->create()->delete();
         Event::factory([
             'start_at' => Carbon::now()->addYear(),
             'end_at' => Carbon::now()->addYear()->addHour(),
         ])->hasAttached($consumer, [], 'participants')->create();
         Event::factory()->for($consumer, 'creator')->create();
-
         Event::factory()->hasAttached(User::factory()->create(), [], 'participants')->create();
 
         $params = http_build_query([
@@ -334,6 +360,25 @@ class EventTest extends TestCase
                     ],
                 ],
             ])->assertJsonPath('data.0.pivot.participant_id', $consumer->id);
+    }
+
+    #[DataProvider('providerBoolean')]
+    public function test_list_auth_events_with_canceled($embedCanceled)
+    {
+        /** @var User $consumer */
+        $consumer = User::factory()->create();
+
+        Event::factory()->hasAttached($consumer, [], 'participants')->create();
+        Event::factory()->hasAttached($consumer, [], 'participants')->create()->delete();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_canceled' => $embedCanceled,
+        ]);
+        $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount($embedCanceled ? 2 : 1, 'data');
     }
 
     #[DataProvider('providerBoolean')]

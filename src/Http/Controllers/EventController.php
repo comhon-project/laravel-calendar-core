@@ -29,12 +29,16 @@ class EventController extends Controller
             'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
             ...$this->getBaseScopeValidation(),
             'embed_schedulable' => 'boolean',
+            'embed_canceled' => 'boolean',
         ]);
 
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
 
         $events = $participantClass::query()
-            ->with(['events' => fn ($query) => $this->scopeEvents($query, $validated)])
+            ->with([
+                'events' => fn ($query) => $query->where(fn ($query) => $this->scopeEvents($query, $validated))
+                    ->when($request->boolean('embed_canceled'), fn ($query) => $query->withTrashed()),
+            ])
             ->findOrFail($validated['participant_ids'], (new $participantClass)->getKeyName())
             ->pluck('events')
             ->flatten();
@@ -66,15 +70,19 @@ class EventController extends Controller
             ...$this->getBaseScopeValidation(),
             'include_as_creator' => 'boolean',
             'embed_schedulable' => 'boolean',
+            'embed_canceled' => 'boolean',
         ]);
 
         $scopeEvents = fn ($query) => $this->scopeEvents($query, $validated);
-        $events = $user->events()->where($scopeEvents)->get();
+        $events = $user->events()
+            ->when($request->boolean('embed_canceled'), fn ($query) => $query->withTrashed())
+            ->where($scopeEvents)->get();
 
         $includeAsCreator = $validated['include_as_creator'] ?? false;
         if ($includeAsCreator) {
             $this->verifySameTable('calendar-core.creator_model', $user);
             $creatorButNotParticipant = Event::query()
+                ->when($request->boolean('embed_canceled'), fn ($query) => $query->withTrashed())
                 ->where('creator_id', $user->getKey())
                 ->whereDoesntHave('participants', fn ($query) => $query->where($user->getKeyName(), $user->getKey()))
                 ->where($scopeEvents)
