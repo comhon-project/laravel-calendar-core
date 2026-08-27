@@ -3,10 +3,11 @@
 namespace Comhon\Calendar\Database\Factories;
 
 use Carbon\Carbon;
+use Comhon\Calendar\Models\Event;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\Comhon\Calendar\Models\Event>
+ * @extends Factory<Event>
  */
 class EventFactory extends Factory
 {

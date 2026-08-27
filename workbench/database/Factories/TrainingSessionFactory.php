@@ -3,10 +3,11 @@
 namespace Database\Factories;
 
 use App\Models\TrainingProgram;
+use App\Models\TrainingSession;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\TrainingSession>
+ * @extends Factory<TrainingSession>
  */
 class TrainingSessionFactory extends Factory
 {

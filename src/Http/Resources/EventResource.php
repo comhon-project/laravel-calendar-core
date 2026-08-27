@@ -3,6 +3,7 @@
 namespace Comhon\Calendar\Http\Resources;
 
 use Comhon\MorphedModelExporter\Facades\MorphedModelExporter;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class EventResource extends JsonResource
@@ -15,7 +16,7 @@ class EventResource extends JsonResource
     /**
      * Transform the resource into an array.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  Request  $request
      * @return array
      */
     public function toArray($request)

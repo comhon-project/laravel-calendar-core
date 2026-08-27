@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\User;
+
 // config for Comhon/Calendar
 return [
 
@@ -7,12 +9,12 @@ return [
      | eloquent model to use for participants,
      | it must be instance of HasScheduleInterface
      */
-    'participant_model' => \App\Models\User::class,
+    'participant_model' => User::class,
 
     /*
      | eloquent model to use for event creators
      */
-    'creator_model' => \App\Models\User::class,
+    'creator_model' => User::class,
 
     /*
      | all configs related to events API

@@ -56,7 +56,7 @@ class EventController extends Controller
 
     public function listAuthUserEvents(Request $request)
     {
-        /** @var \Illuminate\Database\Eloquent\Model|HasScheduleInterface $authUser */
+        /** @var Model|HasScheduleInterface $authUser */
         $authUser = Auth::user();
         $this->verifySameTable('calendar-core.participant_model', $authUser);
 
@@ -65,7 +65,7 @@ class EventController extends Controller
 
     public function listUserEvents(Request $request, $user)
     {
-        /** @var \Illuminate\Database\Eloquent\Model|HasScheduleInterface $user */
+        /** @var Model|HasScheduleInterface $user */
         $user = is_object($user) ? $user : app(config('calendar-core.participant_model'))->findOrFail($user);
         $this->verifyUserHasScheduleInterface($user);
         $this->authorize('view-user-events', [Event::class, $user]);
@@ -185,7 +185,7 @@ class EventController extends Controller
      */
     public function store(Request $request, EventService $eventService)
     {
-        /** @var \Illuminate\Database\Eloquent\Model $authUser */
+        /** @var Model $authUser */
         $authUser = Auth::user();
         $this->verifySameTable('calendar-core.creator_model', $authUser);
 
@@ -283,7 +283,7 @@ class EventController extends Controller
 
     public function accept(Request $request, EventService $eventService, Event $event)
     {
-        /** @var \Illuminate\Database\Eloquent\Model $participant */
+        /** @var Model $participant */
         $participant = Auth::user();
         $this->verifySameTable('calendar-core.participant_model', $participant);
         $this->authorize('accept', [$event, $participant]);
