@@ -4,6 +4,7 @@ namespace Comhon\Calendar\Http\Controllers;
 
 use Carbon\Carbon;
 use Closure;
+use Comhon\Calendar\Contracts\ContextAuthorizerInterface;
 use Comhon\Calendar\Contracts\HasScheduleInterface;
 use Comhon\Calendar\Contracts\ParticipantScoperInterface;
 use Comhon\Calendar\Http\Resources\EventResource;
@@ -11,6 +12,7 @@ use Comhon\Calendar\Http\Resources\HasScheduleResource;
 use Comhon\Calendar\Models\Event;
 use Comhon\Calendar\Services\EventService;
 use Comhon\MorphedModelExporter\Facades\MorphedModelExporter;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,10 +31,12 @@ class EventController extends Controller
             'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
             ...$this->getBaseScopeValidation(),
             'embed_schedulable' => 'boolean',
+            'context' => 'nullable|string|max:255',
             'embed_canceled' => 'boolean',
         ]);
 
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
+        $context = $this->resolveContext($request, $validated);
 
         $events = $participantClass::query()
             ->with([
@@ -44,7 +48,7 @@ class EventController extends Controller
             ->flatten();
 
         if ($request->boolean('embed_schedulable')) {
-            MorphedModelExporter::loadMorphedModels($events, 'schedulable');
+            MorphedModelExporter::loadMorphedModels($events, 'schedulable', $context);
         }
 
         return EventResource::collection($events);
@@ -70,8 +74,10 @@ class EventController extends Controller
             ...$this->getBaseScopeValidation(),
             'include_as_creator' => 'boolean',
             'embed_schedulable' => 'boolean',
+            'context' => 'nullable|string|max:255',
             'embed_canceled' => 'boolean',
         ]);
+        $context = $this->resolveContext($request, $validated);
 
         $scopeEvents = fn ($query) => $this->scopeEvents($query, $validated);
         $events = $user->events()
@@ -92,7 +98,7 @@ class EventController extends Controller
         }
 
         if ($request->boolean('embed_schedulable')) {
-            MorphedModelExporter::loadMorphedModels($events, 'schedulable');
+            MorphedModelExporter::loadMorphedModels($events, 'schedulable', $context);
         }
 
         return EventResource::collection($events);
@@ -106,6 +112,28 @@ class EventController extends Controller
             'types' => 'nullable|array',
             'types.*' => 'nullable|string',
         ];
+    }
+
+    /**
+     * Verify that the authenticated user may use the requested context,
+     * then share it with event resources through the request attributes.
+     *
+     * @param  array  $inputs  must be already validated
+     */
+    private function resolveContext(Request $request, array $inputs): ?string
+    {
+        $context = $inputs['context'] ?? null;
+        if ($context === null) {
+            return null;
+        }
+        $authorized = app()->bound(ContextAuthorizerInterface::class)
+            && app(ContextAuthorizerInterface::class)->authorize($context, Auth::user());
+        if (! $authorized) {
+            throw new AuthorizationException(__("unauthorized context ':context'", ['context' => $context]));
+        }
+        $request->attributes->set(EventResource::CONTEXT, $context);
+
+        return $context;
     }
 
     /**

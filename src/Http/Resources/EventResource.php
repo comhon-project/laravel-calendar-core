@@ -8,6 +8,11 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class EventResource extends JsonResource
 {
     /**
+     * request attribute holding the call context, once verified by the controller
+     */
+    public const CONTEXT = 'calendar-core.context';
+
+    /**
      * Transform the resource into an array.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -24,7 +29,10 @@ class EventResource extends JsonResource
             'end_at' => $this->end_at,
             'schedulable_id' => $this->schedulable_id,
             'schedulable_type' => $this->schedulable_type,
-            'schedulable' => $this->whenLoaded('schedulable', fn ($schedulable) => MorphedModelExporter::exportModel($schedulable)),
+            'schedulable' => $this->whenLoaded('schedulable', fn ($schedulable) => MorphedModelExporter::exportModel(
+                $schedulable,
+                $request->attributes->get(self::CONTEXT)
+            )),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,

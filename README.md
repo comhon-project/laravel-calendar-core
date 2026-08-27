@@ -213,6 +213,28 @@ You can embed schedulable models of each event in the response by loading and ex
 
 To do so, the client must send the query parameter `embed_schedulable` set to `1`. And your backend application must define the exporters for schedulable models. To define exporters, follow the documentation of the project `laravel-morphed-model-exporter` that is used under the hood. You can read only the chapter to register exporters [here](https://github.com/comhon-project/laravel-morphed-model-exporter?tab=readme-ov-file#register-exporters).
 
+##### Context
+
+Along with `embed_schedulable`, the client may send the query parameter `context` (a string). It is forwarded as first additional parameter to the `query_builder` and `model_exporter` closures of your exporters, so you can load and export schedulable models differently according to the context (`null` is forwarded when the client doesn't send any context).
+
+```php
+TrainingSession::class => [
+    'query_builder' => fn ($query, ?string $context) => $context === 'detailed'
+        ? $query->with('program')
+        : $query,
+    'model_exporter' => fn ($model, ?string $context) => $context === 'detailed'
+        ? new DetailedTrainingSessionResource($model)
+        : new TrainingSessionResource($model),
+],
+```
+
+A context may expose sensitive data, so a requested context is always verified: you must register a class in the container that implements `ContextAuthorizerInterface`. If no authorizer is registered, or if it returns `false`, the request is rejected with a `403` response.
+
+```php
+// in you AppServiceProvider
+$this->app->bind(ContextAuthorizerInterface::class, YourContextAuthorizer::class);
+```
+
 ## Tips
 
 ### Schedulable Series models and events aggregations

@@ -6,9 +6,11 @@ use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Services\ContextAuthorizerConsumer;
 use App\Services\ParticipantScoperAll;
 use App\Services\ParticipantScoperAuth;
 use Carbon\Carbon;
+use Comhon\Calendar\Contracts\ContextAuthorizerInterface;
 use Comhon\Calendar\Contracts\ParticipantScoperInterface;
 use Comhon\Calendar\Http\Controllers\EventController;
 use Comhon\Calendar\Models\Event;
@@ -275,6 +277,95 @@ class EventTest extends TestCase
         $this->assertArrayNotHasKey('schedulable', $data->firstWhere('schedulable_type', 'appointment'));
     }
 
+    private function registerContextualShedulableExporters()
+    {
+        $this->registerShedulableExporters([
+            TrainingSession::class => [
+                'query_builder' => fn ($query, ?string $context) => $context === 'with_program'
+                    ? $query->with('program:id,name')->select('id', 'training_program_id')
+                    : $query->select('id', 'training_program_id'),
+                'model_exporter' => fn ($model, ?string $context) => [...$model->toArray(), 'context' => $context],
+            ],
+        ]);
+    }
+
+    #[DataProvider('providerBoolean')]
+    public function test_list_events_with_context_success($withContext)
+    {
+        $this->registerContextualShedulableExporters();
+        $this->app->bind(ContextAuthorizerInterface::class, ContextAuthorizerConsumer::class);
+
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $user = User::factory()->hasAttached($trainingSession->event, [], 'events')->create();
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $inputs = [
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_schedulable' => true,
+        ];
+        if ($withContext) {
+            $inputs['context'] = 'with_program';
+        }
+        $response = $this->actingAs($consumer)->getJson('api/events?'.http_build_query($inputs))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJson([
+                'data' => [
+                    [
+                        'schedulable' => [
+                            'id' => $trainingSession->id,
+                            'training_program_id' => $trainingSession->program->id,
+                            'context' => $withContext ? 'with_program' : null,
+                        ],
+                    ],
+                ],
+            ]);
+
+        if ($withContext) {
+            $response->assertJsonPath('data.0.schedulable.program', [
+                'id' => $trainingSession->program->id,
+                'name' => $trainingSession->program->name,
+            ]);
+        } else {
+            $response->assertJsonMissingPath('data.0.schedulable.program');
+        }
+    }
+
+    public function test_list_events_with_context_forbidden_without_authorizer()
+    {
+        $this->registerContextualShedulableExporters();
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$consumer->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_schedulable' => true,
+            'context' => 'with_program',
+        ]);
+        $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertForbidden()
+            ->assertJson(['message' => "unauthorized context 'with_program'"]);
+    }
+
+    public function test_list_events_with_context_unprocessable()
+    {
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$consumer->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'context' => ['with_program'],
+        ]);
+        $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('context');
+    }
+
     public function test_list_events_unprocessable()
     {
         $consumer = User::factory()->hasConsumerAbility()->create();
@@ -443,6 +534,64 @@ class EventTest extends TestCase
         } else {
             $response->assertJsonMissingPath('data.0.schedulable');
         }
+    }
+
+    public function test_list_auth_user_events_with_context_success()
+    {
+        $this->registerContextualShedulableExporters();
+        $this->app->bind(ContextAuthorizerInterface::class, ContextAuthorizerConsumer::class);
+
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $consumer = User::factory()
+            ->hasAttached($trainingSession->event, [], 'events')
+            ->hasConsumerAbility()
+            ->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_schedulable' => true,
+            'context' => 'with_program',
+        ]);
+        $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJson([
+                'data' => [
+                    [
+                        'schedulable' => [
+                            'id' => $trainingSession->id,
+                            'training_program_id' => $trainingSession->program->id,
+                            'program' => [
+                                'id' => $trainingSession->program->id,
+                                'name' => $trainingSession->program->name,
+                            ],
+                            'context' => 'with_program',
+                        ],
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_list_auth_user_events_with_context_forbidden()
+    {
+        $this->registerContextualShedulableExporters();
+        $this->app->bind(ContextAuthorizerInterface::class, ContextAuthorizerConsumer::class);
+
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $user = User::factory()->hasAttached($trainingSession->event, [], 'events')->create();
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_schedulable' => true,
+            'context' => 'with_program',
+        ]);
+        $this->actingAs($user)->getJson("api/user/events?{$params}")
+            ->assertForbidden()
+            ->assertJson(['message' => "unauthorized context 'with_program'"]);
     }
 
     public function test_list_auth_user_events_with_as_creator_success()
