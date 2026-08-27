@@ -15,7 +15,7 @@ class SchedulableSerieService
     /**
      * attach given participants to events attached to given $schedulableSerie (keep unreferenced participants).
      *
-     * only events with end_at less than current datetime are updated.
+     * by default (if $from is null), only events not finished yet (end_at greater than current datetime) are updated.
      *
      * @return Collection participants who have actually been attached.
      */
@@ -26,7 +26,6 @@ class SchedulableSerieService
         ?Carbon $from = null,
         ?Carbon $to = null
     ): Collection {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
         $attached = collect();
 
@@ -41,7 +40,7 @@ class SchedulableSerieService
     /**
      * detach given participants from events attached to given $schedulableSerie.
      *
-     * only events with end_at less than current datetime are updated.
+     * by default (if $from is null), only events not finished yet (end_at greater than current datetime) are updated.
      *
      * @return Collection participants who have actually been detached.
      */
@@ -51,7 +50,6 @@ class SchedulableSerieService
         ?Carbon $from = null,
         ?Carbon $to = null
     ): Collection {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
         $detached = collect();
 
@@ -70,7 +68,6 @@ class SchedulableSerieService
         ?Carbon $from = null,
         ?Carbon $to = null
     ) {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
 
         DB::transaction(function () use ($schedulableSerie, $participant, $accept, $from, $to) {
@@ -85,19 +82,11 @@ class SchedulableSerieService
         ?Carbon $from = null,
         ?Carbon $to = null
     ) {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
 
         $this->eventService->cancelFromQuery(
             $this->eventService->getSchedulableSerieEventsQuery($schedulableSerie, $from, $to),
             $cancellationReason
         );
-    }
-
-    public function verifyFromDate(?Carbon $from)
-    {
-        if ($from && $from < Carbon::now()) {
-            throw new \Exception('date must be a future date');
-        }
     }
 }

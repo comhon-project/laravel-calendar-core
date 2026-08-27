@@ -141,16 +141,21 @@ class SchedulableTest extends TestCase
         $this->assertNotNull(Event::find($event->id));
     }
 
-    public function test_cancel_events_before_current_failure()
+    public function test_cancel_events_before_current_date_success()
     {
         /** @var TrainingSession $schedulable */
-        $schedulable = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $schedulable = TrainingSession::factory()->has(Event::factory([
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
+        ]), 'event')->create();
         $event = $schedulable->event()->first();
 
         $from = Carbon::now()->subMonth();
 
-        $this->expectExceptionMessage('date must be a future date');
         app(SchedulableService::class)->cancelEvents($schedulable, null, $from);
+
+        $this->assertNull(Event::find($event->id));
+        $this->assertNotNull(Event::withTrashed()->find($event->id));
     }
 
     public function test_cancel_events_from_observer()
@@ -188,6 +193,21 @@ class SchedulableTest extends TestCase
         $this->assertEquals($endAt, $event->end_at);
         $this->assertTrue($creator->is($event->creator));
         $this->assertTrue($schedulable->is($event->schedulable));
+    }
+
+    public function test_schedule_event_in_past_success()
+    {
+        /** @var TrainingSession $schedulable */
+        $schedulable = TrainingSession::factory()->create();
+        $startAt = Carbon::now()->subDays(2)->setMicro(0);
+        $endAt = Carbon::now()->subDay()->setMicro(0);
+        $creator = User::factory()->create();
+
+        app(SchedulableService::class)->schedule($schedulable, $startAt, $endAt, $creator);
+
+        $event = $schedulable->event()->first();
+        $this->assertEquals($startAt, $event->start_at);
+        $this->assertEquals($endAt, $event->end_at);
     }
 
     public function test_schedule_event_failure_exists()

@@ -696,14 +696,19 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_update_event_forbidden_date_exceed()
+    public function test_update_finished_event_success()
     {
-        $data = [];
-        $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
+        $event = Event::factory([
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
+        ])->create();
+        $inputs = ['name' => 'event name updated'];
 
-        $this->actingAs($event->creator)->putJson("api/events/{$event->id}", $data)
-            ->assertForbidden()
-            ->assertJson(['message' => 'event is already finished']);
+        $this->actingAs($event->creator)->putJson("api/events/{$event->id}", $inputs)
+            ->assertOk()
+            ->assertJson(['data' => ['id' => $event->id, ...$inputs]]);
+
+        $this->assertEquals($inputs['name'], $event->refresh()->name);
     }
 
     public function test_cancel_event_creator()
@@ -740,15 +745,18 @@ class EventTest extends TestCase
         $this->assertEquals(1, Event::count());
     }
 
-    public function test_cancel_event_forbidden_date_exceed()
+    public function test_cancel_finished_event_success()
     {
-        $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
+        $event = Event::factory([
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
+        ])->create();
 
         $this->actingAs($event->creator)->postJson("api/events/{$event->id}/cancel")
-            ->assertForbidden()
-            ->assertJson(['message' => 'event is already finished']);
+            ->assertNoContent();
 
-        $this->assertEquals(1, Event::count());
+        $this->assertEquals(0, Event::count());
+        $this->assertEquals(1, Event::withTrashed()->count());
     }
 
     public function test_accept_event_true()
@@ -784,15 +792,18 @@ class EventTest extends TestCase
         $this->assertEquals(1, Event::count());
     }
 
-    public function test_accept_event_forbidden_date_exceed()
+    public function test_accept_finished_event_success()
     {
-        $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
+        $event = Event::factory([
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
+        ])->create();
         /** @var User $user */
         $user = User::factory()->hasAttached($event, [], 'events')->create();
 
-        $response = $this->actingAs($user)->postJson("api/events/{$event->id}/accept", ['accept' => true]);
-        $response->assertForbidden()
-            ->assertJson(['message' => 'event is already finished']);
+        $this->actingAs($user)->postJson("api/events/{$event->id}/accept", ['accept' => true])
+            ->assertNoContent();
+        $this->assertTrue($user->events()->first()->pivot->accepted);
     }
 
     public function test_get_event_participants_success()
@@ -878,14 +889,23 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_reschedule_event_forbidden_date_exceed()
+    public function test_reschedule_finished_event_success()
     {
-        $data = [];
-        $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
+        $event = Event::factory([
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
+        ])->create();
 
-        $this->actingAs($event->creator)->postJson("api/events/{$event->id}/reschedule", $data)
-            ->assertForbidden()
-            ->assertJson(['message' => 'event is already finished']);
+        $inputs = [
+            'start_at' => Carbon::now()->addMinute()->setMicro(0)->toIsoString(),
+            'end_at' => Carbon::now()->addHour()->setMicro(0)->toIsoString(),
+        ];
+        LaravelEvent::fake();
+        $this->actingAs($event->creator)->postJson("api/events/{$event->id}/reschedule", $inputs)
+            ->assertOk()
+            ->assertJson(['data' => ['id' => $event->id, ...$inputs]]);
+
+        PHPUnit::assertArraySubset($inputs, $event->refresh()->toArray());
     }
 
     public function test_sync_participant_event_is_creator()
@@ -977,14 +997,20 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_sync_participant_event_forbidden_date_exceed()
+    public function test_sync_participant_finished_event_success()
     {
-        $data = [];
-        $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
+        $event = Event::factory([
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
+        ])->create();
+        $new = User::factory()->create();
 
-        $this->actingAs($event->creator)->postJson("api/events/{$event->id}/participants/sync", $data)
-            ->assertForbidden()
-            ->assertJson(['message' => 'event is already finished']);
+        LaravelEvent::fake();
+        $this->actingAs($event->creator)->postJson("api/events/{$event->id}/participants/sync", [
+            'participant_ids' => [$new->id],
+        ])->assertNoContent();
+
+        $this->assertEquals(1, $event->participants()->count());
     }
 
     public function test_detach_participant_event_is_creator()
@@ -1021,14 +1047,20 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_detach_participant_event_forbidden_date_exceed()
+    public function test_detach_participant_finished_event_success()
     {
-        $data = [];
-        $event = Event::factory(['end_at' => Carbon::now()->subDay()])->create();
+        $event = Event::factory([
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
+        ])->create();
+        $existing = User::factory()->hasAttached($event, [], 'events')->create();
 
-        $this->actingAs($event->creator)->postJson("api/events/{$event->id}/participants/detach", $data)
-            ->assertForbidden()
-            ->assertJson(['message' => 'event is already finished']);
+        LaravelEvent::fake();
+        $this->actingAs($event->creator)->postJson("api/events/{$event->id}/participants/detach", [
+            'participant_ids' => [$existing->id],
+        ])->assertNoContent();
+
+        $this->assertEquals(0, $event->participants()->count());
     }
 
     public function test_verify_user_has_schedule_interface()

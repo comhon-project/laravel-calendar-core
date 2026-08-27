@@ -3,7 +3,6 @@
 namespace App\Policies\Calendar;
 
 use App\Models\User;
-use Carbon\Carbon;
 use Comhon\Calendar\Models\Event;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
@@ -48,9 +47,6 @@ class EventPolicy
      */
     public function update(User $user, Event $event)
     {
-        if ($event->end_at < Carbon::now()) {
-            return $this->deny(__('event is already finished'));
-        }
         if ($user->is($event->creator)) {
             return true;
         }
@@ -85,10 +81,6 @@ class EventPolicy
      */
     public function accept(User $user, Event $event, $participant)
     {
-        if ($event->end_at < Carbon::now()) {
-            return $this->deny(__('event is already finished'));
-        }
-
         return $user->is($participant) && $event->participants()->where('id', $participant->id)->exists();
     }
 }

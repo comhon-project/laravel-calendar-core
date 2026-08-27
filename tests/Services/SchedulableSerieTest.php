@@ -146,15 +146,22 @@ class SchedulableSerieTest extends TestCase
         $this->assertEquals(2, Event::count());
     }
 
-    public function test_cancel_events_before_current_date_failure()
+    public function test_cancel_events_before_current_date_success()
     {
-        $training = $this->getTrainingWithSessions();
+        $training = TrainingProgram::factory()
+            ->has(TrainingSession::factory()->has(Event::factory([
+                'start_at' => Carbon::now()->subDays(2),
+                'end_at' => Carbon::now()->subDay(),
+            ]), 'event'), 'sessions')
+            ->has(TrainingSession::factory()->has(Event::factory(), 'event'), 'sessions')->create();
         $schedulableSerie = new SchedulableSerie($training, 'sessions');
 
         $from = Carbon::now()->subMonth();
 
-        $this->expectExceptionMessage('date must be a future date');
         app(SchedulableSerieService::class)->cancelEvents($schedulableSerie, null, $from);
+
+        $this->assertEquals(0, Event::count());
+        $this->assertEquals(2, Event::withTrashed()->count());
     }
 
     public function test_cancel_events_from_observer()

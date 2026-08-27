@@ -183,18 +183,23 @@ class EventTest extends TestCase
         app(EventService::class)->reschedule($event, $newStart, $newEnd);
     }
 
-    public function test_reschedule_event_exceed()
+    public function test_reschedule_finished_event_success()
     {
         $event = Event::factory([
-            'start_at' => Carbon::now()->subDay(),
-            'end_at' => Carbon::now()->subDay()->addHour(),
+            'start_at' => Carbon::now()->subDays(2),
+            'end_at' => Carbon::now()->subDay(),
         ])->create();
 
         $newStart = Carbon::now()->addDay()->setMicro(0);
         $newEnd = Carbon::now()->addDay()->addHours(5)->setMicro(0);
 
-        $this->expectExceptionMessage('event is already finished');
+        LaravelEvent::fake();
         app(EventService::class)->reschedule($event, $newStart, $newEnd);
+        LaravelEvent::assertDispatched(EventRescheduled::class);
+
+        $event->refresh();
+        $this->assertEquals($newStart, $event->start_at);
+        $this->assertEquals($newEnd, $event->end_at);
     }
 
     #[DataProvider('providerBoolean')]

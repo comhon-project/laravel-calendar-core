@@ -81,7 +81,6 @@ class EventService
      */
     public function syncParticipants(Event $event, array|Collection $participantIds, bool $accepted = false, bool $fireEvent = true)
     {
-        $this->verifyHasDateNotPassed($event);
         $participantKeyName = $event->participants()->getRelated()->getKeyName();
         $alreadyAttachedIds = $event->participants()->whereIn($participantKeyName, $participantIds)->pluck($participantKeyName);
         $toAttachIds = collect($participantIds)->diff($alreadyAttachedIds)->values();
@@ -134,7 +133,6 @@ class EventService
      */
     public function detachParticipants(Event $event, array|Collection $participantIds, bool $fireEvent = true)
     {
-        $this->verifyHasDateNotPassed($event);
         $participantKeyName = $event->participants()->getRelated()->getKeyName();
         $alreadyAttachedIds = $event->participants()->whereIn($participantKeyName, $participantIds)->pluck($participantKeyName);
         $toDetachIds = collect($participantIds)->intersect($alreadyAttachedIds)->values();
@@ -168,7 +166,6 @@ class EventService
 
     public function reschedule(Event $event, Carbon $startAt, Carbon $endAt)
     {
-        $this->verifyHasDateNotPassed($event);
         if ($endAt <= $startAt) {
             throw new \Exception('$endAt must be after $startAt');
         }
@@ -183,7 +180,6 @@ class EventService
 
     public function setParticipationStatus(Event $event, Model $participant, bool $accept, bool $fireEvent = true)
     {
-        $this->verifyHasDateNotPassed($event);
         if (! $event->participants()->where($participant->getKeyName(), $participant->getKey())->exists()) {
             throw new \Exception("participant '{$participant->getKey()}' doesn't belong to event '{$event->id}'");
         }
@@ -210,7 +206,6 @@ class EventService
 
     public function cancel(Event $event, ?string $cancellationReason = null)
     {
-        $this->verifyHasDateNotPassed($event);
         if ($cancellationReason) {
             $event->cancellation_reason = $cancellationReason;
             $event->save();
@@ -229,12 +224,5 @@ class EventService
             $eventQuery->update(['cancellation_reason' => $cancellationReason]);
         }
         $eventQuery->delete();
-    }
-
-    private function verifyHasDateNotPassed(Event $event)
-    {
-        if ($event->end_at < Carbon::now()) {
-            throw new \Exception('event is already finished');
-        }
     }
 }

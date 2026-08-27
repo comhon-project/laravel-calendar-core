@@ -17,7 +17,7 @@ class SchedulableService
     /**
      * attach given participants to events attached to given $schedulable (keep unreferenced participants).
      *
-     * only events with end_at less than current datetime are updated.
+     * by default (if $from is null), only events not finished yet (end_at greater than current datetime) are updated.
      *
      * @return Collection participants who have actually been attached.
      */
@@ -28,7 +28,6 @@ class SchedulableService
         ?Carbon $from = null,
         ?Carbon $to = null
     ): Collection {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
         $attached = collect();
 
@@ -43,7 +42,7 @@ class SchedulableService
     /**
      * detach given participants from events attached to given $schedulable.
      *
-     * only events with end_at less than current datetime are updated.
+     * by default (if $from is null), only events not finished yet (end_at greater than current datetime) are updated.
      *
      * @return Collection participants who have actually been detached.
      */
@@ -53,7 +52,6 @@ class SchedulableService
         ?Carbon $from = null,
         ?Carbon $to = null
     ): Collection {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
         $detached = collect();
 
@@ -72,7 +70,6 @@ class SchedulableService
         ?Carbon $from = null,
         ?Carbon $to = null
     ) {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
 
         DB::transaction(function () use ($schedulable, $participant, $accept, $from, $to) {
@@ -86,7 +83,6 @@ class SchedulableService
         if (! $schedulable instanceof Model) {
             throw new \Exception('$schedulable must be instance of eloquent Model');
         }
-        $this->verifyFromDate($startAt);
         if ($endAt <= $startAt) {
             throw new \Exception('$endAt must be after $startAt');
         }
@@ -134,19 +130,11 @@ class SchedulableService
         ?Carbon $from = null,
         ?Carbon $to = null
     ) {
-        $this->verifyFromDate($from);
         $from ??= Carbon::now();
 
         $this->eventService->cancelFromQuery(
             $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to),
             $cancellationReason
         );
-    }
-
-    public function verifyFromDate(?Carbon $from)
-    {
-        if ($from && $from < Carbon::now()) {
-            throw new \Exception('date must be a future date');
-        }
     }
 }
