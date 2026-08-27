@@ -15,7 +15,9 @@ use Comhon\Calendar\Events\ParticipantsDetached;
 use Comhon\Calendar\Events\ParticipationStatusSet;
 use Comhon\Calendar\Models\Event;
 use Comhon\Calendar\Services\EventService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -154,6 +156,61 @@ class EventTest extends TestCase
         $this->assertTrue($dateTime == $to);
         $dateTime = array_pop($bindings);
         $this->assertTrue($dateTime == $from);
+    }
+
+    public function test_load_participants_success()
+    {
+        $events = Event::factory(2)->create();
+        $participants = User::factory(3)->create();
+        $events[0]->participants()->attach($participants->pluck('id'));
+        $events[1]->participants()->attach($participants[2]->id);
+
+        DB::enableQueryLog();
+        app(EventService::class)->loadParticipants($events, 2, ['id', 'name']);
+        $this->assertCount(2, DB::getQueryLog());
+
+        $this->assertEquals(3, $events[0]->participants_count);
+        $this->assertEquals(1, $events[1]->participants_count);
+        $this->assertEquals(
+            [$participants[0]->id, $participants[1]->id],
+            $events[0]->participants->pluck('id')->all()
+        );
+        $this->assertEquals([$participants[2]->id], $events[1]->participants->pluck('id')->all());
+
+        $first = $events[0]->participants->first();
+        $this->assertEquals(['id', 'name'], array_keys($first->getAttributes()));
+        $this->assertEquals($events[0]->id, $first->pivot->event_id);
+        $this->assertEquals($participants[0]->id, $first->pivot->participant_id);
+    }
+
+    public function test_load_participants_single_event_success()
+    {
+        $event = Event::factory()->create();
+        $event->participants()->attach(User::factory(3)->create()->pluck('id'));
+
+        app(EventService::class)->loadParticipants($event, 5);
+
+        $this->assertEquals(3, $event->participants_count);
+        $this->assertCount(3, $event->participants);
+    }
+
+    public function test_load_participants_without_limit_success()
+    {
+        $event = Event::factory()->create();
+        $event->participants()->attach(User::factory(3)->create()->pluck('id'));
+
+        app(EventService::class)->loadParticipants($event);
+
+        $this->assertEquals(3, $event->participants_count);
+        $this->assertCount(3, $event->participants);
+    }
+
+    public function test_load_participants_empty_collection()
+    {
+        DB::enableQueryLog();
+        app(EventService::class)->loadParticipants(new Collection, 5);
+
+        $this->assertEmpty(DB::getQueryLog());
     }
 
     public function test_reschedule_event_success()

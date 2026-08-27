@@ -15,6 +15,7 @@ use Comhon\Calendar\Contracts\ParticipantScoperInterface;
 use Comhon\Calendar\Http\Controllers\EventController;
 use Comhon\Calendar\Models\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use Illuminate\Testing\Assert as PHPUnit;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -366,6 +367,108 @@ class EventTest extends TestCase
             ->assertJsonValidationErrorFor('context');
     }
 
+    #[DataProvider('providerBoolean')]
+    public function test_list_events_with_participants_success($embedParticipants)
+    {
+        config()->set('calendar-core.api.embed_participants_limit', 2);
+
+        $user = User::factory()->create();
+        $crowded = Event::factory()->hasAttached($user, [], 'participants')->create();
+        $others = User::factory(3)->create();
+        $crowded->participants()->attach($others->pluck('id'));
+        $alone = Event::factory()->hasAttached($user, [], 'participants')->create();
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_participants' => $embedParticipants,
+        ]);
+        $response = $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        if (! $embedParticipants) {
+            $response->assertJsonMissingPath('data.0.participants')
+                ->assertJsonMissingPath('data.0.participants_count');
+
+            return;
+        }
+
+        $data = $response->collect('data')->keyBy('id');
+
+        $this->assertEquals(4, $data[$crowded->id]['participants_count']);
+        $this->assertEquals(
+            [$user->id, $others[0]->id],
+            collect($data[$crowded->id]['participants'])->pluck('id')->all()
+        );
+        $this->assertEquals([
+            'id' => $user->id,
+            'name' => $user->name,
+            'first_name' => $user->first_name,
+            'pivot' => [
+                'participant_id' => $user->id,
+                'event_id' => $crowded->id,
+                'accepted' => null,
+                'accept_choice_at' => null,
+            ],
+        ], $data[$crowded->id]['participants'][0]);
+
+        $this->assertEquals(1, $data[$alone->id]['participants_count']);
+        $this->assertEquals([$user->id], collect($data[$alone->id]['participants'])->pluck('id')->all());
+    }
+
+    public function test_list_events_with_participants_query_count()
+    {
+        $user = User::factory()->create();
+        $events = Event::factory(3)->hasAttached($user, [], 'participants')->create();
+        foreach ($events as $event) {
+            $event->participants()->attach(User::factory(3)->create()->pluck('id'));
+        }
+        $consumer = User::factory()->hasConsumerAbility()->create();
+        $inputs = [
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ];
+
+        DB::enableQueryLog();
+        $this->actingAs($consumer)->getJson('api/events?'.http_build_query($inputs))->assertOk();
+        $withoutParticipants = count(DB::getQueryLog());
+
+        DB::flushQueryLog();
+        $this->actingAs($consumer)->getJson('api/events?'.http_build_query([...$inputs, 'embed_participants' => true]))
+            ->assertOk()
+            ->assertJsonCount(3, 'data');
+        $withParticipants = count(DB::getQueryLog());
+
+        // one query for the counts, one for the participants
+        $this->assertEquals($withoutParticipants + 2, $withParticipants);
+    }
+
+    public function test_list_events_with_participants_without_limit_success()
+    {
+        config()->set('calendar-core.api.embed_participants_limit', null);
+
+        $user = User::factory()->create();
+        $event = Event::factory()->hasAttached($user, [], 'participants')->create();
+        $event->participants()->attach(User::factory(3)->create()->pluck('id'));
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$user->id],
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'embed_participants' => true,
+        ]);
+        $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertOk()
+            ->assertJsonPath('data.0.participants_count', 4)
+            ->assertJsonCount(4, 'data.0.participants');
+    }
+
     public function test_list_events_unprocessable()
     {
         $consumer = User::factory()->hasConsumerAbility()->create();
@@ -594,6 +697,34 @@ class EventTest extends TestCase
             ->assertJson(['message' => "unauthorized context 'with_program'"]);
     }
 
+    public function test_list_auth_user_events_with_participants_success()
+    {
+        config()->set('calendar-core.api.embed_participants_limit', 1);
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+        $asParticipant = Event::factory()->hasAttached($consumer, [], 'participants')->create();
+        $asParticipant->participants()->attach(User::factory()->create()->id);
+        $asCreator = Event::factory()->for($consumer, 'creator')->create();
+        $asCreator->participants()->attach(User::factory(2)->create()->pluck('id'));
+
+        $params = http_build_query([
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+            'include_as_creator' => true,
+            'embed_participants' => true,
+        ]);
+        $data = $this->actingAs($consumer)->getJson("api/user/events?{$params}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->collect('data')
+            ->keyBy('id');
+
+        $this->assertEquals(2, $data[$asParticipant->id]['participants_count']);
+        $this->assertEquals([$consumer->id], collect($data[$asParticipant->id]['participants'])->pluck('id')->all());
+        $this->assertEquals(2, $data[$asCreator->id]['participants_count']);
+        $this->assertCount(1, $data[$asCreator->id]['participants']);
+    }
+
     public function test_list_auth_user_events_with_as_creator_success()
     {
         $consumer = User::factory()->hasConsumerAbility()->create();
@@ -814,6 +945,35 @@ class EventTest extends TestCase
         $this->actingAs($consumer)->getJson("api/events/{$event->id}?{$params}")
             ->assertForbidden()
             ->assertJson(['message' => "unauthorized context 'with_program'"]);
+    }
+
+    public function test_get_event_with_participants_success()
+    {
+        config()->set('calendar-core.api.embed_participants_limit', 2);
+
+        $event = Event::factory()->create();
+        $participants = User::factory(3)->create();
+        $event->participants()->attach($participants->pluck('id'));
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        DB::enableQueryLog();
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}")
+            ->assertOk()
+            ->assertJsonMissingPath('data.participants')
+            ->assertJsonMissingPath('data.participants_count');
+        $withoutParticipants = count(DB::getQueryLog());
+
+        DB::flushQueryLog();
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}?embed_participants=1")
+            ->assertOk()
+            ->assertJsonPath('data.participants_count', 3)
+            ->assertJsonCount(2, 'data.participants')
+            ->assertJsonPath('data.participants.0.id', $participants[0]->id)
+            ->assertJsonPath('data.participants.1.id', $participants[1]->id);
+        $withParticipants = count(DB::getQueryLog());
+
+        // one query for the count, one for the participants
+        $this->assertEquals($withoutParticipants + 2, $withParticipants);
     }
 
     public function test_store_event_success()

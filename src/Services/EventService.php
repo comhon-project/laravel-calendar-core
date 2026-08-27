@@ -11,7 +11,9 @@ use Comhon\Calendar\Events\ParticipantsDetached;
 use Comhon\Calendar\Events\ParticipationStatusSet;
 use Comhon\Calendar\Models\Event;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -72,6 +74,40 @@ class EventService
             $query->where($participant->getKeyName(), $participant->getKey())
                 ->when($syncFrom, fn ($query) => $query->where('calendar_event_participants.created_at', '>=', $syncFrom));
         });
+    }
+
+    /**
+     * Load participants count and participants (ordered by attachment date) on each given event,
+     * in two queries whatever the number of events.
+     *
+     * @param  int|null  $limit  maximum number of participants loaded on each event, null to load all of them
+     * @param  array  $columns  participant columns to select
+     */
+    public function loadParticipants(Collection|Event $events, ?int $limit = null, array $columns = ['*']): void
+    {
+        $collection = new EloquentCollection($events instanceof Event ? [$events] : $events->all());
+        if ($collection->isEmpty()) {
+            return;
+        }
+        $collection->loadCount('participants');
+
+        /** @var BelongsToMany $relation */
+        $relation = $collection->first()->participants();
+        $participantTable = $relation->getRelated()->getTable();
+        $pivotTable = $relation->getTable();
+        $columns = array_map(fn ($column) => "$participantTable.$column", $columns);
+
+        $collection->load([
+            'participants' => function (BelongsToMany $query) use ($columns, $pivotTable, $limit) {
+                $query->select($columns)
+                    ->orderBy("$pivotTable.created_at")
+                    ->orderBy("$pivotTable.participant_id");
+
+                if ($limit !== null) {
+                    $query->limit($limit);
+                }
+            },
+        ]);
     }
 
     /**

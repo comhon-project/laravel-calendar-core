@@ -153,7 +153,7 @@ The object `SchedulableSerie` is a wrapper that contains a Schedulable Series mo
 
 Event service is the central service to handle events. to instanciate the `EventService` you should use [laravel container](https://laravel.com/docs/11.x/container) and Dependency injection.
 
-From `EventService` You can, among other things, attach/detach participants, set participation status for a participant, reschedule events, cancel events.
+From `EventService` You can, among other things, attach/detach participants, set participation status for a participant, reschedule events, cancel events, load participants count and a limited number of participants on a collection of events (`loadParticipants`).
 
 When using `EventService` directly, events are dispatched for each previous mentioned actions :
 
@@ -235,6 +235,20 @@ A context may expose sensitive data, so a requested context is always verified: 
 // in you AppServiceProvider
 $this->app->bind(ContextAuthorizerInterface::class, YourContextAuthorizer::class);
 ```
+
+#### Participants
+
+When you use following routes :
+
+-   `GET /events`
+-   `GET /events/{event}`
+-   `GET /user/events`
+-   `GET /users/{user}/events`
+
+You can embed participants of each event in the response by sending the query parameter `embed_participants` set to `1`. Each event then exposes :
+
+-   `participants_count`: the total number of participants of the event.
+-   `participants`: the first participants of the event (ordered by attachment date), limited to the config `api.embed_participants_limit` (set it to `null` to embed all participants). Each participant is exported with its identity properties (see `HasScheduleInterface::getIdentityProperties()`) and its participation status (`pivot`).
 
 ## Tips
 

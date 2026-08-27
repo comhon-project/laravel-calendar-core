@@ -41,6 +41,13 @@ return [
          | middlewares to apply on all event routes
          */
         'middleware' => ['web', 'auth'],
+
+        /*
+         | maximum number of participants embedded in each event
+         | when the client sends the query parameter `embed_participants`.
+         | set to null to embed all participants.
+         */
+        'embed_participants_limit' => 10,
     ],
 
     /*

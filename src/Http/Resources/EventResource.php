@@ -34,6 +34,8 @@ class EventResource extends JsonResource
                 $schedulable,
                 $request->attributes->get(self::CONTEXT)
             )),
+            'participants_count' => $this->whenCounted('participants'),
+            'participants' => HasScheduleResource::collection($this->whenLoaded('participants')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,

@@ -15,6 +15,7 @@ use Comhon\MorphedModelExporter\Facades\MorphedModelExporter;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,7 @@ class EventController extends Controller
             ...$this->getBaseScopeValidation(),
             'embed_schedulable' => 'boolean',
             'context' => 'nullable|string|max:255',
+            'embed_participants' => 'boolean',
             'embed_canceled' => 'boolean',
         ]);
 
@@ -49,6 +51,9 @@ class EventController extends Controller
 
         if ($request->boolean('embed_schedulable')) {
             MorphedModelExporter::loadMorphedModels($events, 'schedulable', $context);
+        }
+        if ($request->boolean('embed_participants')) {
+            $this->loadParticipants($events);
         }
 
         return EventResource::collection($events);
@@ -75,6 +80,7 @@ class EventController extends Controller
             'include_as_creator' => 'boolean',
             'embed_schedulable' => 'boolean',
             'context' => 'nullable|string|max:255',
+            'embed_participants' => 'boolean',
             'embed_canceled' => 'boolean',
         ]);
         $context = $this->resolveContext($request, $validated);
@@ -100,6 +106,9 @@ class EventController extends Controller
         if ($request->boolean('embed_schedulable')) {
             MorphedModelExporter::loadMorphedModels($events, 'schedulable', $context);
         }
+        if ($request->boolean('embed_participants')) {
+            $this->loadParticipants($events);
+        }
 
         return EventResource::collection($events);
     }
@@ -112,28 +121,6 @@ class EventController extends Controller
             'types' => 'nullable|array',
             'types.*' => 'nullable|string',
         ];
-    }
-
-    /**
-     * Verify that the authenticated user may use the requested context,
-     * then share it with event resources through the request attributes.
-     *
-     * @param  array  $inputs  must be already validated
-     */
-    private function resolveContext(Request $request, array $inputs): ?string
-    {
-        $context = $inputs['context'] ?? null;
-        if ($context === null) {
-            return null;
-        }
-        $authorized = app()->bound(ContextAuthorizerInterface::class)
-            && app(ContextAuthorizerInterface::class)->authorize($context, Auth::user());
-        if (! $authorized) {
-            throw new AuthorizationException(__("unauthorized context ':context'", ['context' => $context]));
-        }
-        $request->attributes->set(EventResource::CONTEXT, $context);
-
-        return $context;
     }
 
     /**
@@ -169,12 +156,16 @@ class EventController extends Controller
         $validated = $request->validate([
             'embed_schedulable' => 'boolean',
             'context' => 'nullable|string|max:255',
+            'embed_participants' => 'boolean',
         ]);
         $context = $this->resolveContext($request, $validated);
 
         $event->load('creator');
         if ($request->boolean('embed_schedulable')) {
             MorphedModelExporter::loadMorphedModels($event, 'schedulable', $context);
+        }
+        if ($request->boolean('embed_participants')) {
+            $this->loadParticipants($event);
         }
 
         return new EventResource($event);
@@ -372,6 +363,42 @@ class EventController extends Controller
                 fn ($query) => app(ParticipantScoperInterface::class)->scope($query, Auth::user())
             ),
         ];
+    }
+
+    /**
+     * Verify that the authenticated user may use the requested context,
+     * then share it with event resources through the request attributes.
+     *
+     * @param  array  $inputs  must be already validated
+     */
+    private function resolveContext(Request $request, array $inputs): ?string
+    {
+        $context = $inputs['context'] ?? null;
+        if ($context === null) {
+            return null;
+        }
+        $authorized = app()->bound(ContextAuthorizerInterface::class)
+            && app(ContextAuthorizerInterface::class)->authorize($context, Auth::user());
+        if (! $authorized) {
+            throw new AuthorizationException(__("unauthorized context ':context'", ['context' => $context]));
+        }
+        $request->attributes->set(EventResource::CONTEXT, $context);
+
+        return $context;
+    }
+
+    /**
+     * Load participants count and participants (limited by config to keep the payload bounded) on given events.
+     */
+    private function loadParticipants(Collection|Event $events): void
+    {
+        $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
+
+        app(EventService::class)->loadParticipants(
+            $events,
+            config('calendar-core.api.embed_participants_limit'),
+            (new $participantClass)->getIdentityProperties()
+        );
     }
 
     public function verifySameTable(string $configClassKey, Model $authUser)
