@@ -266,8 +266,13 @@ class EventTest extends TestCase
                         'schedulable_type',
                     ],
                 ],
-            ])->assertJsonMissingPath('data.0.schedulable')
-            ->assertJsonMissingPath('data.1.schedulable');
+            ])->collect('data');
+
+        // event without schedulable is loaded as null, event whose schedulable has no exporter is not loaded
+        $withoutSchedulable = $data->firstWhere('schedulable_type', null);
+        $this->assertArrayHasKey('schedulable', $withoutSchedulable);
+        $this->assertNull($withoutSchedulable['schedulable']);
+        $this->assertArrayNotHasKey('schedulable', $data->firstWhere('schedulable_type', 'appointment'));
     }
 
     public function test_list_events_unprocessable()
