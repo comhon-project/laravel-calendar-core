@@ -739,6 +739,83 @@ class EventTest extends TestCase
             ->assertForbidden();
     }
 
+    #[DataProvider('providerBoolean')]
+    public function test_get_event_with_schedulable_success($embedMorphedModels)
+    {
+        $this->registerShedulableExporters([
+            TrainingSession::class => [
+                'query_builder' => fn ($query) => $query->with('program:id,name')->select('id', 'training_program_id'),
+                'model_exporter' => fn ($model) => $model,
+            ],
+        ]);
+
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query(['embed_schedulable' => $embedMorphedModels]);
+        $response = $this->actingAs($consumer)->getJson("api/events/{$trainingSession->event->id}?{$params}")
+            ->assertOk();
+
+        if ($embedMorphedModels) {
+            $response->assertJson([
+                'data' => [
+                    'schedulable_id' => $trainingSession->id,
+                    'schedulable_type' => 'session',
+                    'schedulable' => [
+                        'id' => $trainingSession->id,
+                        'training_program_id' => $trainingSession->program->id,
+                        'program' => [
+                            'id' => $trainingSession->program->id,
+                            'name' => $trainingSession->program->name,
+                        ],
+                    ],
+                ],
+            ]);
+        } else {
+            $response->assertJsonMissingPath('data.schedulable');
+        }
+    }
+
+    public function test_get_event_with_context_success()
+    {
+        $this->registerContextualShedulableExporters();
+        $this->app->bind(ContextAuthorizerInterface::class, ContextAuthorizerConsumer::class);
+
+        /** @var TrainingSession $trainingSession */
+        $trainingSession = TrainingSession::factory()->has(Event::factory(), 'event')->create();
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query(['embed_schedulable' => true, 'context' => 'with_program']);
+        $this->actingAs($consumer)->getJson("api/events/{$trainingSession->event->id}?{$params}")
+            ->assertOk()
+            ->assertJson([
+                'data' => [
+                    'schedulable' => [
+                        'id' => $trainingSession->id,
+                        'training_program_id' => $trainingSession->program->id,
+                        'program' => [
+                            'id' => $trainingSession->program->id,
+                            'name' => $trainingSession->program->name,
+                        ],
+                        'context' => 'with_program',
+                    ],
+                ],
+            ]);
+    }
+
+    public function test_get_event_with_context_forbidden_without_authorizer()
+    {
+        $this->registerContextualShedulableExporters();
+        $event = Event::factory()->create();
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query(['embed_schedulable' => true, 'context' => 'with_program']);
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}?{$params}")
+            ->assertForbidden()
+            ->assertJson(['message' => "unauthorized context 'with_program'"]);
+    }
+
     public function test_store_event_success()
     {
         $startAt = Carbon::now()->addMinute()->setMicro(0)->toIsoString();

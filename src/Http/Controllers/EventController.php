@@ -162,11 +162,22 @@ class EventController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Event $event)
+    public function show(Request $request, Event $event)
     {
         $this->authorize('view', $event);
 
-        return new EventResource($event->load('creator'));
+        $validated = $request->validate([
+            'embed_schedulable' => 'boolean',
+            'context' => 'nullable|string|max:255',
+        ]);
+        $context = $this->resolveContext($request, $validated);
+
+        $event->load('creator');
+        if ($request->boolean('embed_schedulable')) {
+            MorphedModelExporter::loadMorphedModels($event, 'schedulable', $context);
+        }
+
+        return new EventResource($event);
     }
 
     /**

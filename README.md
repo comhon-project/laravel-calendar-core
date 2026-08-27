@@ -206,6 +206,7 @@ $this->app->bind(ParticipantScoperInterface::class, YourParticipantScoper::class
 When you use following routes :
 
 -   `GET /events`
+-   `GET /events/{event}`
 -   `GET /user/events`
 -   `GET /users/{user}/events`
 
