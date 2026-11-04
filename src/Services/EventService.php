@@ -5,6 +5,7 @@ namespace Comhon\Calendar\Services;
 use Carbon\Carbon;
 use Comhon\Calendar\Contracts\SchedulableInterface;
 use Comhon\Calendar\DTO\SchedulableSerie;
+use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Events\EventRescheduled;
 use Comhon\Calendar\Events\ParticipantsAttached;
 use Comhon\Calendar\Events\ParticipantsDetached;
@@ -19,41 +20,41 @@ use Illuminate\Support\Facades\DB;
 
 class EventService
 {
-    public function getSchedulableEventsQuery(SchedulableInterface $schedulable, ?Carbon $from = null, ?Carbon $to = null): Builder
-    {
+    public function getSchedulableEventsQuery(
+        SchedulableInterface $schedulable,
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+        EventSelection $selection = EventSelection::Overlapping
+    ): Builder {
         if (! $schedulable instanceof Model) {
             throw new \Exception('$schedulable must be instance of eloquent Model');
         }
 
-        return Event::whereHasMorph(
+        $query = Event::whereHasMorph(
             'schedulable',
             get_class($schedulable),
             fn ($query) => $query->where($schedulable->getKeyName(), $schedulable->getKey())
-        )->when(
-            $from,
-            fn ($query) => $query->where('end_at', '>', $from->copy()->tz('UTC'))
-        )->when(
-            $to,
-            fn ($query) => $query->where('start_at', '<', $to->copy()->tz('UTC'))
         );
+
+        return $this->applyPeriodFilter($query, $from, $to, $selection);
     }
 
-    public function getSchedulableSerieEventsQuery(SchedulableSerie $schedulableSerie, ?Carbon $from = null, ?Carbon $to = null): Builder
-    {
+    public function getSchedulableSerieEventsQuery(
+        SchedulableSerie $schedulableSerie,
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+        EventSelection $selection = EventSelection::Overlapping
+    ): Builder {
         $relationship = $schedulableSerie->getSerieRelation();
         $relatedModel = $relationship->getRelated();
 
-        return Event::whereHasMorph(
+        $query = Event::whereHasMorph(
             'schedulable',
             get_class($relatedModel),
             fn ($query) => $query->whereIn($relatedModel->getKeyName(), $relationship->select($relatedModel->getKeyName()))
-        )->when(
-            $from,
-            fn ($query) => $query->where('end_at', '>', $from->copy()->tz('UTC'))
-        )->when(
-            $to,
-            fn ($query) => $query->where('start_at', '<', $to->copy()->tz('UTC'))
         );
+
+        return $this->applyPeriodFilter($query, $from, $to, $selection);
     }
 
     /**
@@ -260,5 +261,22 @@ class EventService
             $eventQuery->update(['cancellation_reason' => $cancellationReason]);
         }
         $eventQuery->delete();
+    }
+
+    private function applyPeriodFilter(Builder $query, ?Carbon $from, ?Carbon $to, EventSelection $selection): Builder
+    {
+        if ($from) {
+            $from = $from->copy()->tz('UTC');
+            match ($selection) {
+                EventSelection::Overlapping => $query->where('end_at', '>', $from),
+                EventSelection::StartingFrom => $query->where('start_at', '>=', $from),
+                EventSelection::StartingAfter => $query->where('start_at', '>', $from),
+            };
+        }
+        if ($to) {
+            $query->where('start_at', '<', $to->copy()->tz('UTC'));
+        }
+
+        return $query;
     }
 }

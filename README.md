@@ -176,6 +176,19 @@ Schedulable Serie service permit to manage a serie of events directly from your 
 
 From `SchedulableSerieService` You can, attach/detach participants, set participation status for a participant, cancel events.
 
+### Events selection
+
+By default, `SchedulableService` and `SchedulableSerieService` update events not finished yet (ongoing events included). To update only events not started yet (for example a participant leaving a serie during an ongoing event), use the `selection` parameter:
+
+```php
+use Comhon\Calendar\Enums\EventSelection;
+
+// ongoing event is kept, participant is detached only from next events
+$schedulableSerieService->detachParticipants($schedulableSerie, [$userId], selection: EventSelection::StartingAfter);
+```
+
+`EventSelection::StartingAfter` selects events starting strictly after `$from` (current datetime by default), `EventSelection::StartingFrom` selects events starting at or after `$from` (useful with an explicit `$from`, e.g. a given event start).
+
 ### Config
 
 Once you have published package files you can see/edit available configs in the file `config/calendar-core.php`.

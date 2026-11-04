@@ -9,6 +9,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Comhon\Calendar\Contracts\SchedulableInterface;
 use Comhon\Calendar\DTO\SchedulableSerie;
+use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Events\EventRescheduled;
 use Comhon\Calendar\Events\ParticipantsAttached;
 use Comhon\Calendar\Events\ParticipantsDetached;
@@ -400,5 +401,75 @@ class EventTest extends TestCase
 
         $this->assertEmpty($detached->all());
         $this->assertCount(0, $event->refresh()->participants);
+    }
+
+    #[DataProvider('providerSelectionOperator')]
+    public function test_get_schedulable_events_query_with_selection(EventSelection $selection, string $operator)
+    {
+        /** @var SchedulableInterface $schedulable */
+        $schedulable = TrainingSession::factory()->create();
+        $from = Carbon::now()->setMicro(0);
+        $to = Carbon::now()->addHour()->setMicro(0);
+
+        $query = app(EventService::class)->getSchedulableEventsQuery($schedulable, $from, $to, $selection);
+        $this->assertEquals(
+            'select * from "calendar_events" where (("calendar_events"."schedulable_type" = ? and exists (select * from "training_sessions" where "calendar_events"."schedulable_id" = "training_sessions"."id" and "id" = ? and "training_sessions"."deleted_at" is null))) and "start_at" '.$operator.' ? and "start_at" < ? and "calendar_events"."deleted_at" is null',
+            $query->toSql(),
+        );
+        $bindings = $query->getBindings();
+        $dateTime = array_pop($bindings);
+        $this->assertTrue($dateTime == $to);
+        $dateTime = array_pop($bindings);
+        $this->assertTrue($dateTime == $from);
+    }
+
+    #[DataProvider('providerSelectionOperator')]
+    public function test_get_schedulable_serie_events_query_with_selection(EventSelection $selection, string $operator)
+    {
+        /** @var TrainingProgram $training */
+        $training = TrainingProgram::factory()->create();
+        $from = Carbon::now()->setMicro(0);
+        $to = Carbon::now()->addHour()->setMicro(0);
+
+        $query = app(EventService::class)
+            ->getSchedulableSerieEventsQuery(new SchedulableSerie($training, 'sessions'), $from, $to, $selection);
+        $this->assertEquals(
+            'select * from "calendar_events" where (("calendar_events"."schedulable_type" = ? and exists (select * from "training_sessions" where "calendar_events"."schedulable_id" = "training_sessions"."id" and "id" in (select "id" from "training_sessions" where "training_sessions"."training_program_id" = ? and "training_sessions"."training_program_id" is not null and "training_sessions"."deleted_at" is null) and "training_sessions"."deleted_at" is null))) and "start_at" '.$operator.' ? and "start_at" < ? and "calendar_events"."deleted_at" is null',
+            $query->toSql(),
+        );
+        $bindings = $query->getBindings();
+        $dateTime = array_pop($bindings);
+        $this->assertTrue($dateTime == $to);
+        $dateTime = array_pop($bindings);
+        $this->assertTrue($dateTime == $from);
+    }
+
+    #[DataProvider('providerNotStartedSelection')]
+    public function test_get_schedulable_events_query_with_selection_without_from(EventSelection $selection)
+    {
+        /** @var SchedulableInterface $schedulable */
+        $schedulable = TrainingSession::factory()->create();
+
+        $query = app(EventService::class)->getSchedulableEventsQuery($schedulable, selection: $selection);
+        $this->assertEquals(
+            'select * from "calendar_events" where (("calendar_events"."schedulable_type" = ? and exists (select * from "training_sessions" where "calendar_events"."schedulable_id" = "training_sessions"."id" and "id" = ? and "training_sessions"."deleted_at" is null))) and "calendar_events"."deleted_at" is null',
+            $query->toSql(),
+        );
+    }
+
+    public static function providerSelectionOperator()
+    {
+        return [
+            [EventSelection::StartingFrom, '>='],
+            [EventSelection::StartingAfter, '>'],
+        ];
+    }
+
+    public static function providerNotStartedSelection()
+    {
+        return [
+            [EventSelection::StartingFrom],
+            [EventSelection::StartingAfter],
+        ];
     }
 }

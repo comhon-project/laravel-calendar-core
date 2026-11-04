@@ -4,6 +4,7 @@ namespace Comhon\Calendar\Services;
 
 use Carbon\Carbon;
 use Comhon\Calendar\Contracts\SchedulableInterface;
+use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Models\Event;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
@@ -26,13 +27,14 @@ class SchedulableService
         array|Collection $participantIds,
         bool $accepted = false,
         ?Carbon $from = null,
-        ?Carbon $to = null
+        ?Carbon $to = null,
+        EventSelection $selection = EventSelection::Overlapping
     ): Collection {
         $from ??= Carbon::now();
         $attached = collect();
 
-        DB::transaction(function () use ($schedulable, $participantIds, $accepted, $from, $to, &$attached) {
-            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to);
+        DB::transaction(function () use ($schedulable, $participantIds, $accepted, $from, $to, $selection, &$attached) {
+            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to, $selection);
             $attached = $this->eventService->syncParticipantsFromQuery($eventQuery, $participantIds, $accepted);
         });
 
@@ -50,13 +52,14 @@ class SchedulableService
         SchedulableInterface $schedulable,
         array|Collection $participantIds,
         ?Carbon $from = null,
-        ?Carbon $to = null
+        ?Carbon $to = null,
+        EventSelection $selection = EventSelection::Overlapping
     ): Collection {
         $from ??= Carbon::now();
         $detached = collect();
 
-        DB::transaction(function () use ($schedulable, $participantIds, $from, $to, &$detached) {
-            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to);
+        DB::transaction(function () use ($schedulable, $participantIds, $from, $to, $selection, &$detached) {
+            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to, $selection);
             $detached = $this->eventService->detachParticipantsFromQuery($eventQuery, $participantIds);
         });
 
@@ -68,12 +71,13 @@ class SchedulableService
         Model $participant,
         bool $accept,
         ?Carbon $from = null,
-        ?Carbon $to = null
+        ?Carbon $to = null,
+        EventSelection $selection = EventSelection::Overlapping
     ) {
         $from ??= Carbon::now();
 
-        DB::transaction(function () use ($schedulable, $participant, $accept, $from, $to) {
-            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to);
+        DB::transaction(function () use ($schedulable, $participant, $accept, $from, $to, $selection) {
+            $eventQuery = $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to, $selection);
             $this->eventService->setParticipationStatusFromQuery($eventQuery, $participant, $accept);
         });
     }
@@ -128,12 +132,13 @@ class SchedulableService
         SchedulableInterface $schedulable,
         ?string $cancellationReason = null,
         ?Carbon $from = null,
-        ?Carbon $to = null
+        ?Carbon $to = null,
+        EventSelection $selection = EventSelection::Overlapping
     ) {
         $from ??= Carbon::now();
 
         $this->eventService->cancelFromQuery(
-            $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to),
+            $this->eventService->getSchedulableEventsQuery($schedulable, $from, $to, $selection),
             $cancellationReason
         );
     }

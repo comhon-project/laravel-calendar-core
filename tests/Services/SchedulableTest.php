@@ -7,6 +7,7 @@ use App\Models\TrainingProgramSimple;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\Carbon;
+use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Events\ParticipantsAttached;
 use Comhon\Calendar\Events\ParticipantsDetached;
 use Comhon\Calendar\Models\Event;
@@ -459,5 +460,85 @@ class SchedulableTest extends TestCase
 
         $this->assertEquals([], $detached->all());
         $this->assertCount(2, $schedulable->refresh()->event->participants);
+    }
+
+    #[DataProvider('providerNotStartedSelection')]
+    public function test_sync_participants_to_schedulable_not_started_events_only(EventSelection $selection)
+    {
+        [$schedulable, $ongoingEvent, $futureEvent] = $this->getSchedulableWithOngoingAndFutureEvents();
+        $users = User::factory(2)->create();
+
+        $attached = app(SchedulableService::class)
+            ->syncParticipants($schedulable, $users->pluck('id'), selection: $selection);
+
+        $this->assertCount(2, $attached);
+        $this->assertCount(0, $ongoingEvent->participants);
+        $this->assertCount(2, $futureEvent->participants);
+    }
+
+    #[DataProvider('providerNotStartedSelection')]
+    public function test_detach_participants_from_schedulable_not_started_events_only(EventSelection $selection)
+    {
+        [$schedulable, $ongoingEvent, $futureEvent] = $this->getSchedulableWithOngoingAndFutureEvents();
+        $user = User::factory()->create();
+        $user->events()->attach([$ongoingEvent->id, $futureEvent->id]);
+
+        $detached = app(SchedulableService::class)
+            ->detachParticipants($schedulable, [$user->id], selection: $selection);
+
+        $this->assertEquals([$user->id], $detached->all());
+        $this->assertCount(1, $ongoingEvent->participants);
+        $this->assertCount(0, $futureEvent->participants);
+    }
+
+    #[DataProvider('providerNotStartedSelection')]
+    public function test_set_participation_status_schedulable_not_started_events_only(EventSelection $selection)
+    {
+        [$schedulable, $ongoingEvent, $futureEvent] = $this->getSchedulableWithOngoingAndFutureEvents();
+        $user = User::factory()->create();
+        $user->events()->attach([$ongoingEvent->id, $futureEvent->id]);
+
+        app(SchedulableService::class)
+            ->setParticipationStatus($schedulable, $user, true, selection: $selection);
+
+        $this->assertNull($ongoingEvent->participants->first()->pivot->accepted);
+        $this->assertTrue($futureEvent->participants->first()->pivot->accepted);
+    }
+
+    #[DataProvider('providerNotStartedSelection')]
+    public function test_cancel_schedulable_events_not_started_events_only(EventSelection $selection)
+    {
+        [$schedulable, $ongoingEvent, $futureEvent] = $this->getSchedulableWithOngoingAndFutureEvents();
+
+        app(SchedulableService::class)->cancelEvents($schedulable, selection: $selection);
+
+        $this->assertNotNull(Event::find($ongoingEvent->id));
+        $this->assertNull(Event::find($futureEvent->id));
+        $this->assertNotNull(Event::withTrashed()->find($futureEvent->id));
+    }
+
+    public static function providerNotStartedSelection()
+    {
+        return [
+            [EventSelection::StartingFrom],
+            [EventSelection::StartingAfter],
+        ];
+    }
+
+    private function getSchedulableWithOngoingAndFutureEvents(): array
+    {
+        $schedulable = TrainingProgramSimple::factory()
+            ->has(Event::factory([
+                'start_at' => Carbon::now()->subHour(),
+                'end_at' => Carbon::now()->addHour(),
+            ]), 'events')
+            ->has(Event::factory([
+                'start_at' => Carbon::now()->addDay(),
+                'end_at' => Carbon::now()->addDay()->addHour(),
+            ]), 'events')
+            ->create();
+        $events = Event::orderBy('start_at')->get();
+
+        return [$schedulable, $events[0], $events[1]];
     }
 }
