@@ -240,11 +240,13 @@ class EventService
 
     public function cancel(Event $event, ?string $cancellationReason = null)
     {
-        if ($cancellationReason) {
-            $event->cancellation_reason = $cancellationReason;
-            $event->save();
-        }
-        $event->delete();
+        DB::transaction(function () use ($event, $cancellationReason) {
+            if ($cancellationReason) {
+                $event->cancellation_reason = $cancellationReason;
+                $event->save();
+            }
+            $event->delete();
+        });
     }
 
     /**

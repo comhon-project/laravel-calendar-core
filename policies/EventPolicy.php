@@ -81,6 +81,6 @@ class EventPolicy
      */
     public function accept(User $user, Event $event, $participant)
     {
-        return $user->is($participant) && $event->participants()->where('id', $participant->id)->exists();
+        return $user->is($participant) && $event->participants()->whereKey($participant->getKey())->exists();
     }
 }

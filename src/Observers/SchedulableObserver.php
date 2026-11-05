@@ -19,7 +19,8 @@ class SchedulableObserver
     {
         if ($schedulable instanceof SchedulableInterface) {
             $this->schedulableService->cancelEvents($schedulable);
-        } else {
+        }
+        if ($schedulable instanceof SchedulableSeriesInterface) {
             foreach ($schedulable->series() as $serie) {
                 $this->schedulableSerieService->cancelEvents(new SchedulableSerie($schedulable, $serie));
             }

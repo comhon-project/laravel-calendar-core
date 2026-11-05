@@ -117,7 +117,7 @@ class EventController extends Controller
     {
         return [
             'from' => 'required|date',
-            'to' => 'required|date',
+            'to' => 'required|date|after_or_equal:from',
             'types' => 'nullable|array',
             'types.*' => 'nullable|string',
         ];

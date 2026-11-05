@@ -7,12 +7,15 @@ use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Comhon\Calendar\Contracts\SchedulableInterface;
 use Comhon\Calendar\DTO\SchedulableSerie;
 use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Events\ParticipantsAttached;
 use Comhon\Calendar\Events\ParticipantsDetached;
 use Comhon\Calendar\Models\Event;
+use Comhon\Calendar\Observers\SchedulableObserver;
 use Comhon\Calendar\Services\SchedulableSerieService;
+use Comhon\Calendar\Services\SchedulableService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event as LaravelEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -175,6 +178,21 @@ class SchedulableSerieTest extends TestCase
 
         $this->assertEquals(0, Event::count());
         $this->assertEquals(2, Event::withTrashed()->count());
+    }
+
+    public function test_cancel_events_from_observer_schedulable_and_series()
+    {
+        $schedulable = new class extends TrainingProgram implements SchedulableInterface
+        {
+            public function getEventName(): string
+            {
+                return 'training';
+            }
+        };
+        $this->mock(SchedulableService::class)->shouldReceive('cancelEvents')->once()->with($schedulable);
+        $this->mock(SchedulableSerieService::class)->shouldReceive('cancelEvents')->once();
+
+        app(SchedulableObserver::class)->deleting($schedulable);
     }
 
     #[DataProvider('providerBoolean')]

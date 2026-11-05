@@ -381,6 +381,20 @@ class EventTest extends TestCase
             ->assertJsonValidationErrorFor('participant_ids');
     }
 
+    public function test_list_events_with_to_before_from_unprocessable()
+    {
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => [$consumer->id],
+            'from' => Carbon::now()->toIsoString(),
+            'to' => Carbon::now()->subDay()->toIsoString(),
+        ]);
+        $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('to');
+    }
+
     public function test_sync_participant_event_with_participant_ids_not_array_unprocessable()
     {
         $event = Event::factory()->create();
