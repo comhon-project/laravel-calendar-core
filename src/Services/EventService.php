@@ -114,12 +114,13 @@ class EventService
      */
     public function syncParticipants(Event $event, array|Collection $participantIds, bool $accepted = false, bool $fireEvent = true)
     {
-        $participantKeyName = $event->participants()->getRelated()->getKeyName();
+        $participantModel = $event->participants()->getRelated();
+        $participantKeyName = $participantModel->getKeyName();
         $alreadyAttachedIds = $event->participants()->whereIn($participantKeyName, $participantIds)->pluck($participantKeyName);
         $toAttachIds = collect($participantIds)->diff($alreadyAttachedIds)->values();
 
         if ($toAttachIds->isNotEmpty()) {
-            DB::transaction(function () use ($event, $toAttachIds, $accepted, $fireEvent) {
+            DB::transaction(function () use ($event, $participantModel, $toAttachIds, $accepted, $fireEvent) {
                 $event->participants()->syncWithoutDetaching(
                     $toAttachIds->mapWithKeys(fn ($id) => [$id => [
                         'accepted' => $accepted ?: null,
@@ -127,8 +128,7 @@ class EventService
                     ]])->all()
                 );
                 if ($fireEvent) {
-                    $class = config('calendar-core.participant_model');
-                    ParticipantsAttached::dispatch($event, $class::findOrFail($toAttachIds), $accepted);
+                    ParticipantsAttached::dispatch($event, $participantModel->newQuery()->findOrFail($toAttachIds), $accepted);
                 }
             });
         }

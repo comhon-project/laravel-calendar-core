@@ -303,7 +303,10 @@ class EventTest extends TestCase
 
         LaravelEvent::fake();
         $attached = app(EventService::class)->syncParticipants($event, $users->pluck('id'), $accepted);
-        LaravelEvent::assertDispatched(ParticipantsAttached::class);
+        LaravelEvent::assertDispatched(
+            ParticipantsAttached::class,
+            fn (ParticipantsAttached $e) => $e->attached->pluck('id')->sort()->values()->all() == $users->pluck('id')->sort()->values()->all()
+        );
 
         $this->assertEquals($users->pluck('id')->all(), $attached->all());
 
@@ -329,7 +332,10 @@ class EventTest extends TestCase
 
         LaravelEvent::fake();
         $attached = app(EventService::class)->syncParticipants($event, $users->pluck('id'), $accepted);
-        LaravelEvent::assertDispatched(ParticipantsAttached::class);
+        LaravelEvent::assertDispatched(
+            ParticipantsAttached::class,
+            fn (ParticipantsAttached $e) => $e->attached->pluck('id')->all() == [$users[1]->id]
+        );
 
         $this->assertEquals([$users[1]->id], $attached->all());
 
