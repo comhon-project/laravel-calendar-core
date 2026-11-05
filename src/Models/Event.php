@@ -2,6 +2,9 @@
 
 namespace Comhon\Calendar\Models;
 
+use Carbon\Carbon;
+use Comhon\Calendar\Enums\EventSelection;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,5 +70,24 @@ class Event extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(config('calendar-core.creator_model'));
+    }
+
+    public function scopeInPeriod(
+        Builder $query,
+        ?Carbon $from = null,
+        ?Carbon $to = null,
+        EventSelection $selection = EventSelection::Overlapping
+    ): void {
+        if ($from) {
+            $from = $from->copy()->tz('UTC');
+            match ($selection) {
+                EventSelection::Overlapping => $query->where('end_at', '>', $from),
+                EventSelection::StartingFrom => $query->where('start_at', '>=', $from),
+                EventSelection::StartingAfter => $query->where('start_at', '>', $from),
+            };
+        }
+        if ($to) {
+            $query->where('start_at', '<', $to->copy()->tz('UTC'));
+        }
     }
 }

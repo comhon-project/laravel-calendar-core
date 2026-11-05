@@ -370,7 +370,10 @@ class EventTest extends TestCase
 
         LaravelEvent::fake();
         $detached = app(EventService::class)->detachParticipants($event, $users->pluck('id'));
-        LaravelEvent::assertDispatched(ParticipantsDetached::class);
+        LaravelEvent::assertDispatched(
+            ParticipantsDetached::class,
+            fn (ParticipantsDetached $e) => $e->detached->pluck('id')->sort()->values()->all() == $users->pluck('id')->sort()->values()->all()
+        );
 
         $this->assertEquals($users->pluck('id')->all(), $detached->all());
         $this->assertCount(0, $event->refresh()->participants);
@@ -384,7 +387,10 @@ class EventTest extends TestCase
 
         LaravelEvent::fake();
         $detached = app(EventService::class)->detachParticipants($event, $users->pluck('id'));
-        LaravelEvent::assertDispatched(ParticipantsDetached::class);
+        LaravelEvent::assertDispatched(
+            ParticipantsDetached::class,
+            fn (ParticipantsDetached $e) => $e->detached->pluck('id')->all() == [$users[0]->id]
+        );
 
         $this->assertEquals([$users[0]->id], $detached->all());
         $this->assertCount(0, $event->refresh()->participants);

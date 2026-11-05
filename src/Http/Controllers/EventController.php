@@ -133,8 +133,7 @@ class EventController extends Controller
             $inputs['types'] = array_filter($inputs['types'], fn ($value) => $value !== null);
         }
 
-        $query->where('end_at', '>', Carbon::parse($inputs['from'])->tz('UTC'))
-            ->where('start_at', '<', Carbon::parse($inputs['to'])->tz('UTC'))
+        $query->inPeriod(Carbon::parse($inputs['from']), Carbon::parse($inputs['to']))
             ->where(function ($query) use ($inputs, $hasNullValue) {
                 $query->when(
                     isset($inputs['types']),

@@ -30,13 +30,11 @@ class EventService
             throw new \Exception('$schedulable must be instance of eloquent Model');
         }
 
-        $query = Event::whereHasMorph(
+        return Event::whereHasMorph(
             'schedulable',
             get_class($schedulable),
             fn ($query) => $query->where($schedulable->getKeyName(), $schedulable->getKey())
-        );
-
-        return $this->applyPeriodFilter($query, $from, $to, $selection);
+        )->inPeriod($from, $to, $selection);
     }
 
     public function getSchedulableSerieEventsQuery(
@@ -48,13 +46,11 @@ class EventService
         $relationship = $schedulableSerie->getSerieRelation();
         $relatedModel = $relationship->getRelated();
 
-        $query = Event::whereHasMorph(
+        return Event::whereHasMorph(
             'schedulable',
             get_class($relatedModel),
             fn ($query) => $query->whereIn($relatedModel->getKeyName(), $relationship->select($relatedModel->getKeyName()))
-        );
-
-        return $this->applyPeriodFilter($query, $from, $to, $selection);
+        )->inPeriod($from, $to, $selection);
     }
 
     /**
@@ -171,19 +167,19 @@ class EventService
     public function detachParticipants(Event $event, array|Collection $participantIds, bool $fireEvent = true)
     {
         $participantKeyName = $event->participants()->getRelated()->getKeyName();
-        $alreadyAttachedIds = $event->participants()->whereIn($participantKeyName, $participantIds)->pluck($participantKeyName);
-        $toDetachIds = collect($participantIds)->intersect($alreadyAttachedIds)->values();
+        $toDetach = $event->participants()->whereIn($participantKeyName, $participantIds)->get();
 
-        if ($toDetachIds->isNotEmpty()) {
-            DB::transaction(function () use ($event, $toDetachIds, $fireEvent) {
-                $event->participants()->detach($toDetachIds);
+        if ($toDetach->isNotEmpty()) {
+            DB::transaction(function () use ($event, $toDetach, $fireEvent) {
+                $event->participants()->detach($toDetach);
                 if ($fireEvent) {
-                    ParticipantsDetached::dispatch($event, $event->participants()->find($toDetachIds));
+                    ParticipantsDetached::dispatch($event, $toDetach);
                 }
             });
         }
 
-        return $toDetachIds;
+        // keep the same order as $participantIds
+        return collect($participantIds)->intersect($toDetach->pluck($participantKeyName))->values();
     }
 
     public function detachParticipantsFromQuery(Builder $eventQuery, array|Collection $participantIds)
@@ -261,22 +257,5 @@ class EventService
             $eventQuery->update(['cancellation_reason' => $cancellationReason]);
         }
         $eventQuery->delete();
-    }
-
-    private function applyPeriodFilter(Builder $query, ?Carbon $from, ?Carbon $to, EventSelection $selection): Builder
-    {
-        if ($from) {
-            $from = $from->copy()->tz('UTC');
-            match ($selection) {
-                EventSelection::Overlapping => $query->where('end_at', '>', $from),
-                EventSelection::StartingFrom => $query->where('start_at', '>=', $from),
-                EventSelection::StartingAfter => $query->where('start_at', '>', $from),
-            };
-        }
-        if ($to) {
-            $query->where('start_at', '<', $to->copy()->tz('UTC'));
-        }
-
-        return $query;
     }
 }
