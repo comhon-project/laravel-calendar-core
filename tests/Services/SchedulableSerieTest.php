@@ -6,6 +6,7 @@ use App\Models\TrainingProgram;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Comhon\Calendar\DTO\SchedulableSerie;
 use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Events\ParticipantsAttached;
@@ -203,6 +204,25 @@ class SchedulableSerieTest extends TestCase
                     $this->assertNull($participant->pivot->accept_choice_at);
                 }
             }
+        }
+    }
+
+    public function test_sync_praticipants_to_schedulable_serie_with_immutable_dates_success()
+    {
+        $training = $this->getTrainingWithSessions();
+        $schedulableSerie = new SchedulableSerie($training, 'sessions');
+        $users = User::factory(2)->create();
+
+        $attached = app(SchedulableSerieService::class)->syncParticipants(
+            $schedulableSerie,
+            $users->pluck('id'),
+            from: CarbonImmutable::now(),
+            to: CarbonImmutable::now()->addMonth(),
+        );
+
+        $this->assertEquals($users->pluck('id')->all(), $attached->all());
+        foreach ($training->refresh()->sessions as $session) {
+            $this->assertCount(2, $session->event->participants);
         }
     }
 

@@ -3,6 +3,7 @@
 namespace Comhon\Calendar\Services;
 
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Comhon\Calendar\DTO\SchedulableSerie;
 use Comhon\Calendar\Enums\EventSelection;
 use Illuminate\Database\Eloquent\Model;
@@ -24,8 +25,8 @@ class SchedulableSerieService
         SchedulableSerie $schedulableSerie,
         array|Collection $participantIds,
         bool $accepted = false,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ): Collection {
         $from ??= Carbon::now();
@@ -49,8 +50,8 @@ class SchedulableSerieService
     public function detachParticipants(
         SchedulableSerie $schedulableSerie,
         array|Collection $participantIds,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ): Collection {
         $from ??= Carbon::now();
@@ -68,8 +69,8 @@ class SchedulableSerieService
         SchedulableSerie $schedulableSerie,
         Model $participant,
         bool $accept,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ) {
         $from ??= Carbon::now();
@@ -83,8 +84,8 @@ class SchedulableSerieService
     public function cancelEvents(
         SchedulableSerie $schedulableSerie,
         ?string $cancellationReason = null,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ) {
         $from ??= Carbon::now();

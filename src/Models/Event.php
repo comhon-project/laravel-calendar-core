@@ -2,7 +2,7 @@
 
 namespace Comhon\Calendar\Models;
 
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Comhon\Calendar\Enums\EventSelection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -74,8 +74,8 @@ class Event extends Model
 
     public function scopeInPeriod(
         Builder $query,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ): void {
         if ($from) {

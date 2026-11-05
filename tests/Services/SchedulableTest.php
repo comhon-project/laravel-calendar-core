@@ -7,6 +7,7 @@ use App\Models\TrainingProgramSimple;
 use App\Models\TrainingSession;
 use App\Models\User;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Events\ParticipantsAttached;
 use Comhon\Calendar\Events\ParticipantsDetached;
@@ -194,6 +195,21 @@ class SchedulableTest extends TestCase
         $this->assertEquals($endAt, $event->end_at);
         $this->assertTrue($creator->is($event->creator));
         $this->assertTrue($schedulable->is($event->schedulable));
+    }
+
+    public function test_schedule_event_with_immutable_dates_success()
+    {
+        /** @var TrainingSession $schedulable */
+        $schedulable = TrainingSession::factory()->create();
+        $startAt = CarbonImmutable::now()->addMinute()->setMicro(0);
+        $endAt = CarbonImmutable::now()->addHour()->setMicro(0);
+        $creator = User::factory()->create();
+
+        app(SchedulableService::class)->schedule($schedulable, $startAt, $endAt, $creator);
+
+        $event = $schedulable->event()->first();
+        $this->assertEquals($startAt->toMutable(), $event->start_at);
+        $this->assertEquals($endAt->toMutable(), $event->end_at);
     }
 
     public function test_schedule_event_in_past_success()

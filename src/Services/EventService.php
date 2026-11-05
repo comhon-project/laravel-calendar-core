@@ -3,6 +3,7 @@
 namespace Comhon\Calendar\Services;
 
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Comhon\Calendar\Contracts\SchedulableInterface;
 use Comhon\Calendar\DTO\SchedulableSerie;
 use Comhon\Calendar\Enums\EventSelection;
@@ -22,8 +23,8 @@ class EventService
 {
     public function getSchedulableEventsQuery(
         SchedulableInterface $schedulable,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ): Builder {
         if (! $schedulable instanceof Model) {
@@ -39,8 +40,8 @@ class EventService
 
     public function getSchedulableSerieEventsQuery(
         SchedulableSerie $schedulableSerie,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ): Builder {
         $relationship = $schedulableSerie->getSerieRelation();
@@ -59,9 +60,9 @@ class EventService
     public function getParticipantEventsQuery(
         Model $participant,
         SchedulableInterface|SchedulableSerie $schedulable,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
-        ?Carbon $syncFrom = null
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
+        ?CarbonInterface $syncFrom = null
     ): Builder {
         $query = $schedulable instanceof SchedulableSerie
             ? $this->getSchedulableSerieEventsQuery($schedulable, $from, $to)
@@ -197,7 +198,7 @@ class EventService
         return $detached;
     }
 
-    public function reschedule(Event $event, Carbon $startAt, Carbon $endAt)
+    public function reschedule(Event $event, CarbonInterface $startAt, CarbonInterface $endAt)
     {
         if ($endAt <= $startAt) {
             throw new \Exception('$endAt must be after $startAt');

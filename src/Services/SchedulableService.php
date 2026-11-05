@@ -3,6 +3,7 @@
 namespace Comhon\Calendar\Services;
 
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Comhon\Calendar\Contracts\SchedulableInterface;
 use Comhon\Calendar\Enums\EventSelection;
 use Comhon\Calendar\Models\Event;
@@ -26,8 +27,8 @@ class SchedulableService
         SchedulableInterface $schedulable,
         array|Collection $participantIds,
         bool $accepted = false,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ): Collection {
         $from ??= Carbon::now();
@@ -51,8 +52,8 @@ class SchedulableService
     public function detachParticipants(
         SchedulableInterface $schedulable,
         array|Collection $participantIds,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ): Collection {
         $from ??= Carbon::now();
@@ -70,8 +71,8 @@ class SchedulableService
         SchedulableInterface $schedulable,
         Model $participant,
         bool $accept,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ) {
         $from ??= Carbon::now();
@@ -82,7 +83,7 @@ class SchedulableService
         });
     }
 
-    public function schedule(SchedulableInterface $schedulable, Carbon $startAt, Carbon $endAt, Model $creator): Event
+    public function schedule(SchedulableInterface $schedulable, CarbonInterface $startAt, CarbonInterface $endAt, Model $creator): Event
     {
         if (! $schedulable instanceof Model) {
             throw new \Exception('$schedulable must be instance of eloquent Model');
@@ -115,7 +116,7 @@ class SchedulableService
         return $event;
     }
 
-    public function reschedule(SchedulableInterface $schedulable, Carbon $startAt, Carbon $endAt)
+    public function reschedule(SchedulableInterface $schedulable, CarbonInterface $startAt, CarbonInterface $endAt)
     {
         $query = $this->eventService->getSchedulableEventsQuery($schedulable);
         $count = $query->count();
@@ -131,8 +132,8 @@ class SchedulableService
     public function cancelEvents(
         SchedulableInterface $schedulable,
         ?string $cancellationReason = null,
-        ?Carbon $from = null,
-        ?Carbon $to = null,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $to = null,
         EventSelection $selection = EventSelection::Overlapping
     ) {
         $from ??= Carbon::now();
