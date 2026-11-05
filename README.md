@@ -209,6 +209,8 @@ If you have Schedulable models or Schedulable Series model associated to events,
 
 All API routes are defined [here](https://github.com/comhon-project/laravel-calendar-core/blob/main/routes/routes.php)
 
+`GET /events` returns one entry per participation: an event shared by several requested participants is returned once per participant, each with its own participation status (`pivot`).
+
 #### Participants Scoper
 
 When you use routes that involve participants, you may want to scope allowed paricipants that may be synchronized on an event. To do so, you just have to register a class in the container that implements `ParticipantScoperInterface`.
