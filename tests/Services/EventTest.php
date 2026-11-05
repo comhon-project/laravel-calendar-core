@@ -17,6 +17,7 @@ use Comhon\Calendar\Events\ParticipationStatusSet;
 use Comhon\Calendar\Models\Event;
 use Comhon\Calendar\Services\EventService;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event as LaravelEvent;
@@ -178,6 +179,16 @@ class EventTest extends TestCase
             ->get();
 
         $this->assertEquals([$newEvent->id], $events->pluck('id')->all());
+    }
+
+    public function test_participant_attached_twice_failure()
+    {
+        $event = Event::factory()->create();
+        $user = User::factory()->create();
+        $event->participants()->attach($user->id);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+        $event->participants()->attach($user->id);
     }
 
     public function test_load_participants_success()

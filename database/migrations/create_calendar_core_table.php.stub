@@ -32,6 +32,8 @@ return new class extends Migration
             $table->boolean('accepted')->nullable();
             $table->timestamp('accept_choice_at')->nullable();
             $table->timestamps();
+
+            $table->primary(['event_id', 'participant_id']);
         });
     }
 
