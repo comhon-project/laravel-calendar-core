@@ -31,10 +31,10 @@ class EventController extends Controller
         $validated = $request->validate([
             'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
             ...$this->getBaseScopeValidation(),
-            'embed_schedulable' => 'boolean',
-            'context' => 'nullable|string|max:255',
-            'embed_participants' => 'boolean',
-            'embed_canceled' => 'boolean',
+            'embed_schedulable' => ['boolean'],
+            'context' => ['nullable', 'string', 'max:255'],
+            'embed_participants' => ['boolean'],
+            'embed_canceled' => ['boolean'],
         ]);
 
         $this->authorize('view-any', [Event::class, $validated['participant_ids']]);
@@ -77,11 +77,11 @@ class EventController extends Controller
 
         $validated = $request->validate([
             ...$this->getBaseScopeValidation(),
-            'include_as_creator' => 'boolean',
-            'embed_schedulable' => 'boolean',
-            'context' => 'nullable|string|max:255',
-            'embed_participants' => 'boolean',
-            'embed_canceled' => 'boolean',
+            'include_as_creator' => ['boolean'],
+            'embed_schedulable' => ['boolean'],
+            'context' => ['nullable', 'string', 'max:255'],
+            'embed_participants' => ['boolean'],
+            'embed_canceled' => ['boolean'],
         ]);
         $context = $this->resolveContext($request, $validated);
 
@@ -116,10 +116,10 @@ class EventController extends Controller
     private function getBaseScopeValidation(): array
     {
         return [
-            'from' => 'required|date',
-            'to' => 'required|date|after_or_equal:from',
-            'types' => 'nullable|array',
-            'types.*' => 'nullable|string',
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date', 'after_or_equal:from'],
+            'types' => ['nullable', 'array'],
+            'types.*' => ['nullable', 'string'],
         ];
     }
 
@@ -153,9 +153,9 @@ class EventController extends Controller
         $this->authorize('view', $event);
 
         $validated = $request->validate([
-            'embed_schedulable' => 'boolean',
-            'context' => 'nullable|string|max:255',
-            'embed_participants' => 'boolean',
+            'embed_schedulable' => ['boolean'],
+            'context' => ['nullable', 'string', 'max:255'],
+            'embed_participants' => ['boolean'],
         ]);
         $context = $this->resolveContext($request, $validated);
 
@@ -248,7 +248,7 @@ class EventController extends Controller
 
         $participantClass = config('calendar-core.participant_model');
         $validated = $request->validate([
-            'accepted' => 'nullable|boolean',
+            'accepted' => ['nullable', 'boolean'],
             'participant_ids' => $this->getParticipantIdsRules($participantClass, true),
         ]);
 
@@ -279,7 +279,7 @@ class EventController extends Controller
         $this->authorize('accept', [$event, $participant]);
 
         $validated = $request->validate([
-            'accept' => 'required|boolean',
+            'accept' => ['required', 'boolean'],
         ]);
         if (! $event->participants()->whereKey($participant->getKey())->exists()) {
             throw new AuthorizationException;
@@ -295,7 +295,7 @@ class EventController extends Controller
         $this->authorize('cancel', $event);
 
         $validated = $request->validate([
-            'cancellation_reason' => 'string|max:255',
+            'cancellation_reason' => ['string', 'max:255'],
         ]);
 
         $eventService->cancel($event, $validated['cancellation_reason'] ?? null);
@@ -307,7 +307,7 @@ class EventController extends Controller
     {
         $create = ! $event || ! $event->exists;
         $rules = [
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'max:255'],
         ];
         if ($create) {
             $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
@@ -315,7 +315,7 @@ class EventController extends Controller
                 ...$rules,
                 ...$this->getSchedulePropertiesRules(),
                 'participants.participant_ids' => $this->getParticipantIdsRules($participantClass, false),
-                'participants.accepted' => 'nullable|boolean',
+                'participants.accepted' => ['nullable', 'boolean'],
 
             ];
         }
@@ -341,8 +341,8 @@ class EventController extends Controller
     private function getSchedulePropertiesRules()
     {
         return [
-            'start_at' => 'required|date|before:end_at',
-            'end_at' => 'required|date|after:start_at',
+            'start_at' => ['required', 'date', 'before:end_at'],
+            'end_at' => ['required', 'date', 'after:start_at'],
         ];
     }
 
