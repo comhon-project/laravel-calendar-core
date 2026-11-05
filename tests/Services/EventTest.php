@@ -159,6 +159,27 @@ class EventTest extends TestCase
         $this->assertTrue($dateTime == $from);
     }
 
+    public function test_get_participant_events_query_with_sync_from_success()
+    {
+        /** @var TrainingProgram $training */
+        $training = TrainingProgram::factory()
+            ->has(TrainingSession::factory(2)->has(Event::factory(), 'event'), 'sessions')
+            ->create();
+        [$oldEvent, $newEvent] = $training->sessions->pluck('event')->all();
+        $user = User::factory()->create();
+
+        $user->events()->attach($oldEvent->id);
+        Carbon::setTestNow(Carbon::now()->addHour());
+        $syncFrom = Carbon::now();
+        $user->events()->attach($newEvent->id);
+
+        $events = app(EventService::class)
+            ->getParticipantEventsQuery($user, new SchedulableSerie($training, 'sessions'), syncFrom: $syncFrom)
+            ->get();
+
+        $this->assertEquals([$newEvent->id], $events->pluck('id')->all());
+    }
+
     public function test_load_participants_success()
     {
         $events = Event::factory(2)->create();
@@ -182,6 +203,22 @@ class EventTest extends TestCase
         $this->assertEquals(['id', 'name'], array_keys($first->getAttributes()));
         $this->assertEquals($events[0]->id, $first->pivot->event_id);
         $this->assertEquals($participants[0]->id, $first->pivot->participant_id);
+    }
+
+    public function test_load_participants_ordered_by_attachment_date()
+    {
+        $event = Event::factory()->create();
+        $participants = User::factory(3)->create();
+        $event->participants()->attach($participants[2]->id);
+        Carbon::setTestNow(Carbon::now()->addMinute());
+        $event->participants()->attach([$participants[0]->id, $participants[1]->id]);
+
+        app(EventService::class)->loadParticipants($event);
+
+        $this->assertEquals(
+            [$participants[2]->id, $participants[0]->id, $participants[1]->id],
+            $event->participants->pluck('id')->all()
+        );
     }
 
     public function test_load_participants_single_event_success()

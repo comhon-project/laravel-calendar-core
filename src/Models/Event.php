@@ -59,7 +59,8 @@ class Event extends Model
             ->withPivot([
                 'accepted',
                 'accept_choice_at',
-            ]);
+            ])
+            ->withTimestamps();
     }
 
     public function schedulable(): MorphTo
