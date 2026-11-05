@@ -367,6 +367,30 @@ class EventTest extends TestCase
             ->assertJsonValidationErrorFor('context');
     }
 
+    public function test_list_events_with_participant_ids_not_array_unprocessable()
+    {
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $params = http_build_query([
+            'participant_ids' => 'abc',
+            'from' => Carbon::now()->subDay()->toIsoString(),
+            'to' => Carbon::now()->addDay()->toIsoString(),
+        ]);
+        $this->actingAs($consumer)->getJson("api/events?{$params}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('participant_ids');
+    }
+
+    public function test_sync_participant_event_with_participant_ids_not_array_unprocessable()
+    {
+        $event = Event::factory()->create();
+
+        $this->actingAs($event->creator)
+            ->postJson("api/events/{$event->id}/participants/sync", ['participant_ids' => 'abc'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('participant_ids');
+    }
+
     #[DataProvider('providerBoolean')]
     public function test_list_events_with_participants_success($embedParticipants)
     {

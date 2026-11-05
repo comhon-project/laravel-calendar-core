@@ -348,6 +348,7 @@ class EventController extends Controller
         $key = (new $modelClass)->getKeyName();
 
         return [
+            'bail',
             $required ? 'required' : 'nullable',
             'array',
             function (string $attribute, mixed $value, Closure $fail) {
