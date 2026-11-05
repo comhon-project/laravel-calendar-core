@@ -1202,9 +1202,19 @@ class EventTest extends TestCase
         /** @var User $user */
         $user = User::factory()->create();
 
-        $this->actingAs($user)->postJson("api/events/{$event->id}/cancel")
+        $this->actingAs($user)->postJson("api/events/{$event->id}/accept", ['accept' => true])
             ->assertForbidden();
-        $this->assertEquals(1, Event::count());
+    }
+
+    public function test_accept_event_forbidden_not_participant_without_policies()
+    {
+        config()->set('calendar-core.use_policies', false);
+        $event = Event::factory()->create();
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->postJson("api/events/{$event->id}/accept", ['accept' => true])
+            ->assertForbidden();
     }
 
     public function test_accept_finished_event_success()

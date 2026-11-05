@@ -281,6 +281,9 @@ class EventController extends Controller
         $validated = $request->validate([
             'accept' => 'required|boolean',
         ]);
+        if (! $event->participants()->whereKey($participant->getKey())->exists()) {
+            throw new AuthorizationException;
+        }
 
         $eventService->setParticipationStatus($event, $participant, $validated['accept']);
 
