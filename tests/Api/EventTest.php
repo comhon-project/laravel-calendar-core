@@ -6,6 +6,8 @@ use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use App\Models\TrainingSession;
 use App\Models\User;
+use App\Models\UserWithComputedIdentity;
+use App\Models\UserWithoutKeyIdentity;
 use App\Services\ContextAuthorizerConsumer;
 use App\Services\ParticipantScoperAll;
 use App\Services\ParticipantScoperAuth;
@@ -14,6 +16,7 @@ use Comhon\Calendar\Contracts\ContextAuthorizerInterface;
 use Comhon\Calendar\Contracts\ParticipantScoperInterface;
 use Comhon\Calendar\Http\Controllers\EventController;
 use Comhon\Calendar\Models\Event;
+use Illuminate\Foundation\Auth\User as AuthUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event as LaravelEvent;
@@ -899,6 +902,17 @@ class EventTest extends TestCase
             ]);
     }
 
+    public function test_get_event_creator_without_identity_success()
+    {
+        $event = Event::factory()->create();
+        config()->set('calendar-core.creator_model', AuthUser::class);
+        $consumer = User::factory()->hasConsumerAbility()->create();
+
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}")
+            ->assertOk()
+            ->assertJsonPath('data.creator', ['id' => $event->creator_id]);
+    }
+
     public function test_get_event_forbidden()
     {
         $event = Event::factory()->create();
@@ -1280,6 +1294,70 @@ class EventTest extends TestCase
                     ],
                 ],
             ]);
+    }
+
+    public function test_get_event_participants_identity_without_key_success()
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->hasAttached($user, [], 'participants')->create();
+        config()->set('calendar-core.participant_model', UserWithoutKeyIdentity::class);
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+        DB::enableQueryLog();
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}/participants")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $user->id)
+            ->assertJsonPath('data.0.name', $user->name);
+
+        $query = collect(DB::getQueryLog())->pluck('query')->last();
+        $this->assertStringStartsWith('select "users"."id", "users"."name", "users"."created_at", "calendar_event_participants"', $query);
+    }
+
+    public function test_get_event_embed_identity_without_key_success()
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->hasAttached($user, [], 'participants')->create();
+        config()->set('calendar-core.participant_model', UserWithoutKeyIdentity::class);
+        config()->set('calendar-core.creator_model', UserWithoutKeyIdentity::class);
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}?embed_participants=1")
+            ->assertOk()
+            ->assertJsonPath('data.creator.id', $event->creator_id)
+            ->assertJsonPath('data.creator.name', $event->creator->name)
+            ->assertJsonPath('data.participants.0.id', $user->id)
+            ->assertJsonPath('data.participants.0.name', $user->name);
+    }
+
+    public function test_get_event_embed_computed_identity_success()
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->hasAttached($user, [], 'participants')->create();
+        config()->set('calendar-core.participant_model', UserWithComputedIdentity::class);
+        config()->set('calendar-core.creator_model', UserWithComputedIdentity::class);
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}?embed_participants=1")
+            ->assertOk()
+            ->assertJsonPath('data.creator', [
+                'id' => $event->creator_id,
+                'full_name' => "{$event->creator->first_name} {$event->creator->name}",
+            ])
+            ->assertJsonPath('data.participants.0.id', $user->id)
+            ->assertJsonPath('data.participants.0.full_name', "{$user->first_name} {$user->name}");
+    }
+
+    public function test_get_event_participants_computed_identity_success()
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->hasAttached($user, [], 'participants')->create();
+        config()->set('calendar-core.participant_model', UserWithComputedIdentity::class);
+
+        $consumer = User::factory()->hasConsumerAbility()->create();
+        $this->actingAs($consumer)->getJson("api/events/{$event->id}/participants")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $user->id)
+            ->assertJsonPath('data.0.full_name', "{$user->first_name} {$user->name}");
     }
 
     public function test_get_event_participants_forbidden()

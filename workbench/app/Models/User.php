@@ -49,7 +49,7 @@ class User extends Authenticatable implements HasScheduleInterface, MustVerifyEm
         ];
     }
 
-    public function getIdentityProperties(): array
+    public function getIdentityColumns(): array
     {
         return ['id', 'name', 'first_name'];
     }

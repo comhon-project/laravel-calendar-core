@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 trait HasScheduleTrait
 {
+    use HasIdentityTrait;
+
     public function events(): BelongsToMany
     {
         return $this->belongsToMany(Event::class, 'calendar_event_participants', 'participant_id', 'event_id')

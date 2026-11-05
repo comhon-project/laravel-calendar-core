@@ -201,6 +201,10 @@ You can use built API routes to interact with events. If you have some particula
 
 Before using Built API routes, defined `participant_model` config MUST be a class that implement `HasScheduleInterface`. You may use `HasScheduleTrait` in your participant model so you don't have to define `events` relationship yourself.
 
+The event creator is always exported with its key, plus its identity if `creator_model` implements `HasIdentityInterface`.
+
+`HasIdentityInterface::getIdentityColumns()` defines the columns loaded to build the identity, `HasIdentityInterface::getIdentity()` the exported identity. `HasIdentityTrait` (used by `HasScheduleTrait`) exports identity columns as is, override `getIdentity()` to export computed values.
+
 If you have Schedulable models or Schedulable Series model associated to events, it is recommended to build your own routes and use provided services.
 
 All API routes are defined [here](https://github.com/comhon-project/laravel-calendar-core/blob/main/routes/routes.php)
@@ -261,7 +265,7 @@ When you use following routes :
 You can embed participants of each event in the response by sending the query parameter `embed_participants` set to `1`. Each event then exposes :
 
 -   `participants_count`: the total number of participants of the event.
--   `participants`: the first participants of the event (ordered by attachment date), limited to the config `api.embed_participants_limit` (set it to `null` to embed all participants). Each participant is exported with its identity properties (see `HasScheduleInterface::getIdentityProperties()`) and its participation status (`pivot`).
+-   `participants`: the first participants of the event (ordered by attachment date), limited to the config `api.embed_participants_limit` (set it to `null` to embed all participants). Each participant is exported with its key and its identity (see `HasIdentityInterface::getIdentity()`) and its participation status (`pivot`).
 
 ## Tips
 

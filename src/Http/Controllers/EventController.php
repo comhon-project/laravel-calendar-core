@@ -5,6 +5,7 @@ namespace Comhon\Calendar\Http\Controllers;
 use Carbon\Carbon;
 use Closure;
 use Comhon\Calendar\Contracts\ContextAuthorizerInterface;
+use Comhon\Calendar\Contracts\HasIdentityInterface;
 use Comhon\Calendar\Contracts\HasScheduleInterface;
 use Comhon\Calendar\Contracts\ParticipantScoperInterface;
 use Comhon\Calendar\Http\Resources\EventResource;
@@ -159,7 +160,7 @@ class EventController extends Controller
         ]);
         $context = $this->resolveContext($request, $validated);
 
-        $event->load('creator');
+        $event->load(['creator' => fn ($query) => $query->select($this->getIdentityColumns($query->getModel()))]);
         if ($request->boolean('embed_schedulable')) {
             MorphedModelExporter::loadMorphedModels($event, 'schedulable', $context);
         }
@@ -235,11 +236,10 @@ class EventController extends Controller
         $participantClass = $this->verifyIsHasScheduleInterface('calendar-core.participant_model');
         $this->authorize('view', $event);
 
-        /** @var HasScheduleInterface $model */
-        $model = app($participantClass);
-        $properties = $model->getIdentityProperties();
+        $model = new $participantClass;
+        $columns = $model->qualifyColumns($this->getIdentityColumns($model));
 
-        return HasScheduleResource::collection($event->participants()->select($properties)->paginate());
+        return HasScheduleResource::collection($event->participants()->paginate(columns: $columns));
     }
 
     public function syncParticipants(Request $request, EventService $eventService, Event $event)
@@ -400,8 +400,19 @@ class EventController extends Controller
         app(EventService::class)->loadParticipants(
             $events,
             config('calendar-core.api.embed_participants_limit'),
-            (new $participantClass)->getIdentityProperties()
+            $this->getIdentityColumns(new $participantClass)
         );
+    }
+
+    /**
+     * @return string[] key and identity columns (if any) of given model
+     */
+    private function getIdentityColumns(Model $model): array
+    {
+        return array_unique([
+            $model->getKeyName(),
+            ...($model instanceof HasIdentityInterface ? $model->getIdentityColumns() : []),
+        ]);
     }
 
     public function verifySameTable(string $configClassKey, Model $authUser)
